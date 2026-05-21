@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_prefix = "BF_"
-        env_file = ".env"
+        env_file = str(BASE_DIR / ".env")
 
 
 settings = Settings()
