@@ -20,6 +20,16 @@ function formatSpeed(bytesPerSec: number): string {
   return formatBytes(bytesPerSec) + '/s';
 }
 
+function formatRemainingTime(seconds: number): string {
+  if (seconds === Infinity || isNaN(seconds) || seconds < 0) return '计算中...';
+  if (seconds === 0) return '已达标';
+  if (seconds < 60) return `${Math.round(seconds)}秒`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}分${Math.round(seconds % 60)}秒`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return `${h}小时${m}分`;
+}
+
 export default function Dashboard() {
   const [today, setToday] = useState({ total_bytes: 0, current_speed: 0, active_tasks: 0, uptime_seconds: 0 });
   const [dailyData, setDailyData] = useState<Array<{ period_key: string; total_bytes: number }>>([]);
@@ -49,6 +59,18 @@ export default function Dashboard() {
   const currentGb = totalBytes / (1024 ** 3);
   const percent = targetGb > 0 ? Math.min(100, Math.round((currentGb / targetGb) * 100)) : 0;
 
+  // 估算剩余时间
+  let remainingTimeStr = '';
+  if (targetGb > 0 && currentSpeed > 0) {
+    const remainingBytes = (targetGb * 1024 ** 3) - totalBytes;
+    if (remainingBytes > 0) {
+      const remainingSeconds = remainingBytes / currentSpeed;
+      remainingTimeStr = formatRemainingTime(remainingSeconds);
+    } else {
+      remainingTimeStr = '已达标';
+    }
+  }
+
   return (
     <div>
       <Row gutter={16} style={{ marginBottom: 24 }}>
@@ -61,8 +83,11 @@ export default function Dashboard() {
             />
             {targetGb > 0 && (
                 <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>目标: {targetGb} GB</div>
-                    <Progress percent={percent} size="small" />
+                    <div style={{ fontSize: 12, color: '#999', marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
+                        <span>目标: {targetGb} GB</span>
+                        {currentSpeed > 0 && <span>预计还需: {remainingTimeStr}</span>}
+                    </div>
+                    <Progress percent={percent} size="small" status={percent >= 100 ? 'success' : 'active'} />
                 </div>
             )}
           </Card>
