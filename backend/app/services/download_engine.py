@@ -59,7 +59,7 @@ class DownloadTask:
     async def resume(self):
         self.status = "running"
         self._pause_event.set()
-        logger.info(f"任务 {self.task_id} 已恢复")
+        logger.info(f"任务 {self.task_id} 已���复")
 
     async def _worker(self, worker_id: int):
         """单个下载协程"""
@@ -90,31 +90,44 @@ class DownloadTask:
 
     async def _do_download(self, worker_id: int):
         """执行一次下载（流式读取并丢弃）"""
-        timeout = aiohttp.ClientTimeout(total=None, connect=30)
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-        async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
-            async with session.get(self.url) as resp:
-                if resp.status not in (200, 206):
-                    raise Exception(f"HTTP {resp.status}")
+        # 获取全局并发许可
+        semaphore = download_engine._global_semaphore
+        if semaphore:
+            await semaphore.acquire()
 
-                async for chunk in resp.content.iter_chunked(settings.chunk_size):
-                    if self._stop_event.is_set():
-                        break
-                    await self._pause_event.wait()
+        try:
+            timeout = aiohttp.ClientTimeout(total=None, connect=30)
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
+                async with session.get(self.url) as resp:
+                    if resp.status not in (200, 206):
+                        raise Exception(f"HTTP {resp.status}")
 
-                    chunk_size = len(chunk)
-                    self.total_downloaded += chunk_size
-                    flow_tracker.record(self.task_id, chunk_size)
+                    async for chunk in resp.content.iter_chunked(settings.chunk_size):
+                        if self._stop_event.is_set():
+                            break
+                        await self._pause_event.wait()
 
-                    # 限速
-                    if self._limiter:
-                        await self._limiter.consume(chunk_size)
+                        chunk_size = len(chunk)
+                        self.total_downloaded += chunk_size
+                        flow_tracker.record(self.task_id, chunk_size)
 
-                    # 达到目标
-                    if self.target_bytes > 0 and self.total_downloaded >= self.target_bytes:
-                        break
+                        # 限速：先消耗任务级，再消耗全局级
+                        if self._limiter:
+                            await self._limiter.consume(chunk_size)
+
+                        if download_engine._global_limiter:
+                            await download_engine._global_limiter.consume(chunk_size)
+
+                        # 达到目标
+                        if self.target_bytes > 0 and self.total_downloaded >= self.target_bytes:
+                            break
+        finally:
+            # 释放全局并发许可
+            if semaphore:
+                semaphore.release()
 
 
 class DownloadEngine:
@@ -122,6 +135,26 @@ class DownloadEngine:
 
     def __init__(self):
         self._tasks: dict[int, DownloadTask] = {}
+        self._global_limiter: TokenBucket | None = None
+        self._global_semaphore: asyncio.Semaphore | None = None
+        self._global_max_concurrency: int = 0
+
+    def set_global_limit(self, speed_limit_bps: int):
+        """设置全局限速 (bytes/s)"""
+        if speed_limit_bps > 0:
+            self._global_limiter = TokenBucket(speed_limit_bps, speed_limit_bps * 2)
+        else:
+            self._global_limiter = None
+        logger.info(f"全局限速已设置为: {speed_limit_bps} bytes/s")
+
+    def set_global_concurrency(self, limit: int):
+        """设置全局最大并发数"""
+        self._global_max_concurrency = limit
+        if limit > 0:
+            self._global_semaphore = asyncio.Semaphore(limit)
+        else:
+            self._global_semaphore = None
+        logger.info(f"全局最大并发数已设置为: {limit}")
 
     def get_task(self, task_id: int) -> DownloadTask | None:
         return self._tasks.get(task_id)

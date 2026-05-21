@@ -38,6 +38,13 @@ async def lifespan(app: FastAPI):
 
     await seed_builtin_links()
     await flow_tracker.start()
+
+    # 应用限速和并发设置
+    from app.routers.settings import get_settings, apply_global_settings
+    async with async_session() as session:
+        current_settings = await get_settings(session)
+        await apply_global_settings(current_settings.settings)
+
     setup_scheduler()
     scheduler.start()
     logger.info(f"BrushFlow 已启动，监听 {settings.host}:{settings.port}")
