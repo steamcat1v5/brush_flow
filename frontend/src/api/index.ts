@@ -23,6 +23,9 @@ export const getTasks = (params?: { status?: string }) =>
 export const createTask = (data: { link_id: number; name: string; concurrency?: number; target_bytes?: number; speed_limit?: number }) =>
   client.post('/tasks', data);
 
+export const updateTask = (id: number, data: Record<string, unknown>) =>
+  client.put(`/tasks/${id}`, data);
+
 export const getTask = (id: number) =>
   client.get(`/tasks/${id}`);
 

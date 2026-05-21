@@ -52,7 +52,7 @@ export default function Settings() {
         <Form.Item name="default_task_concurrency" label="新任务默认并发数">
           <InputNumber min={1} max={100} style={{ width: '100%' }} />
         </Form.Item>
-        <Form.Item name="speed_limit_per_conn" label="单连接限速 (KB/s, 0=不限)">
+        <Form.Item name="speed_limit_per_conn" label="任务默认最大速度 (KB/s, 0=不限)">
           <InputNumber min={0} style={{ width: '100%' }} />
         </Form.Item>
         <Form.Item name="daily_traffic_target_gb" label="每日下载目标 (GB, 0=不限)">

@@ -20,15 +20,15 @@ class DownloadTask:
         self.url = url
         self.concurrency = concurrency
         self.target_bytes = target_bytes  # 0=无限
-        self.speed_limit = speed_limit  # bytes/s per conn, 0=不限
+        self.speed_limit = speed_limit  # bytes/s per task (共享), 0=不限
         self.status = "pending"
         self.total_downloaded = 0
-        self._semaphore = asyncio.Semaphore(concurrency)
         self._stop_event = asyncio.Event()
         self._pause_event = asyncio.Event()
         self._pause_event.set()  # 初始非暂停
         self._workers: list[asyncio.Task] = []
         self._retry_count = 0
+        # 任务级限速器：该任务下的所有 worker 共享此令牌桶
         self._limiter = TokenBucket(speed_limit, speed_limit * 2) if speed_limit > 0 else None
 
     async def start(self):
@@ -59,7 +59,7 @@ class DownloadTask:
     async def resume(self):
         self.status = "running"
         self._pause_event.set()
-        logger.info(f"任务 {self.task_id} 已���复")
+        logger.info(f"任务 {self.task_id} 已恢复")
 
     async def _worker(self, worker_id: int):
         """单个下载协程"""
@@ -114,10 +114,11 @@ class DownloadTask:
                         self.total_downloaded += chunk_size
                         flow_tracker.record(self.task_id, chunk_size)
 
-                        # 限速：先消耗任务级，再消耗全局级
+                        # 限速：消耗任务共享的限速器
                         if self._limiter:
                             await self._limiter.consume(chunk_size)
 
+                        # 同时消耗全局共享限速器
                         if download_engine._global_limiter:
                             await download_engine._global_limiter.consume(chunk_size)
 

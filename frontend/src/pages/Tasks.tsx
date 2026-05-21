@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Modal, Form, Input, InputNumber, Select, Space, Table, Tag, message, Popconfirm } from 'antd';
-import { PlusOutlined, PlayCircleOutlined, PauseOutlined, StopOutlined, DeleteOutlined, StopFilled } from '@ant-design/icons';
-import { getTasks, createTask, startTask, pauseTask, resumeTask, stopTask, deleteTask, getLinks, stopAllTasks } from '../api';
+import { Button, Card, Modal, Form, Input, InputNumber, Select, Space, Table, Tag, message, Popconfirm, Tooltip } from 'antd';
+import { PlusOutlined, PlayCircleOutlined, PauseOutlined, StopOutlined, DeleteOutlined, StopFilled, EditOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { getTasks, createTask, updateTask, startTask, pauseTask, resumeTask, stopTask, deleteTask, getLinks, stopAllTasks } from '../api';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return bytes + ' B';
@@ -20,9 +20,10 @@ const statusColors: Record<string, string> = {
 };
 
 export default function Tasks() {
-  const [tasks, setTasks] = useState<Record<string, unknown>[]>([]);
-  const [links, setLinks] = useState<Record<string, unknown>[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [links, setLinks] = useState<any[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<any>(null);
   const [form] = Form.useForm();
 
   const load = () => {
@@ -32,24 +33,48 @@ export default function Tasks() {
 
   useEffect(() => {
     load();
-    const timer = setInterval(load, 2000); // 每2秒刷新一次任务列表以同步进度
+    const timer = setInterval(load, 2000);
     return () => clearInterval(timer);
   }, []);
 
-  const handleCreate = async () => {
-    const values = await form.validateFields();
-    // 转换 KB/s 为 bytes/s
-    if (values.speed_limit) {
-      values.speed_limit = values.speed_limit * 1024;
-    }
-    // 转换 MB 为 bytes
-    if (values.target_bytes) {
-      values.target_bytes = values.target_bytes * 1024 * 1024;
-    }
-    await createTask(values);
-    message.success('任务已创建');
-    setModalOpen(false);
+  const handleOpenCreate = () => {
+    setEditingTask(null);
     form.resetFields();
+    setModalOpen(true);
+  };
+
+  const handleOpenEdit = (task: any) => {
+    setEditingTask(task);
+    form.setFieldsValue({
+      link_id: task.link_id,
+      name: task.name,
+      concurrency: task.concurrency,
+      target_bytes: task.target_bytes / (1024 * 1024),
+      speed_limit: task.speed_limit / 1024,
+    });
+    setModalOpen(true);
+  };
+
+  const handleSubmit = async () => {
+    const values = await form.validateFields();
+    const payload = {
+      ...values,
+      speed_limit: (values.speed_limit || 0) * 1024,
+      target_bytes: (values.target_bytes || 0) * 1024 * 1024,
+    };
+
+    if (editingTask) {
+      await updateTask(editingTask.id, payload);
+      message.success('任务已更新');
+      if (editingTask.status === 'running') {
+        message.info('设置将在任务重启后生效');
+      }
+    } else {
+      await createTask(payload);
+      message.success('任务已创建');
+    }
+
+    setModalOpen(false);
     load();
   };
 
@@ -77,24 +102,25 @@ export default function Tasks() {
       title: '当前速度', dataIndex: 'current_speed', width: 120,
       render: (v: number) => formatBytes(v) + '/s',
     },
-    { title: '并发数', dataIndex: 'concurrency', width: 80 },
+    { title: '并发', dataIndex: 'concurrency', width: 60 },
     {
-      title: '操作', width: 200,
-      render: (_: unknown, record: Record<string, unknown>) => (
+      title: '操作', width: 240,
+      render: (_: unknown, record: any) => (
         <Space>
-          {(record.status === 'pending' || record.status === 'stopped' || record.status === 'failed') && (
-            <Button type="link" size="small" icon={<PlayCircleOutlined />} onClick={() => handleAction('start', record.id as number)}>启动</Button>
+          {(record.status === 'pending' || record.status === 'stopped' || record.status === 'failed' || record.status === 'completed') && (
+            <Button type="link" size="small" icon={<PlayCircleOutlined />} onClick={() => handleAction('start', record.id)}>启动</Button>
           )}
           {record.status === 'running' && (
-            <Button type="link" size="small" icon={<PauseOutlined />} onClick={() => handleAction('pause', record.id as number)}>暂停</Button>
+            <Button type="link" size="small" icon={<PauseOutlined />} onClick={() => handleAction('pause', record.id)}>暂停</Button>
           )}
           {record.status === 'paused' && (
-            <Button type="link" size="small" icon={<PlayCircleOutlined />} onClick={() => handleAction('resume', record.id as number)}>恢复</Button>
+            <Button type="link" size="small" icon={<PlayCircleOutlined />} onClick={() => handleAction('resume', record.id)}>恢复</Button>
           )}
           {(record.status === 'running' || record.status === 'paused') && (
-            <Button type="link" size="small" danger icon={<StopOutlined />} onClick={() => handleAction('stop', record.id as number)}>停止</Button>
+            <Button type="link" size="small" danger icon={<StopOutlined />} onClick={() => handleAction('stop', record.id)}>停止</Button>
           )}
-          <Popconfirm title="确定删除?" onConfirm={() => handleAction('delete', record.id as number)}>
+          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleOpenEdit(record)}>编辑</Button>
+          <Popconfirm title="确定删除?" onConfirm={() => handleAction('delete', record.id)}>
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button>
           </Popconfirm>
         </Space>
@@ -110,19 +136,25 @@ export default function Tasks() {
           <Popconfirm title="确定停止所有运行中的任务?" onConfirm={async () => { await stopAllTasks(); load(); }}>
             <Button danger icon={<StopFilled />}>全部停止</Button>
           </Popconfirm>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>新建任务</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreate}>新建任务</Button>
         </Space>
       }
     >
       <Table dataSource={tasks} columns={columns} rowKey="id" size="middle" />
 
-      <Modal title="新建下载任务" open={modalOpen} onOk={handleCreate} onCancel={() => setModalOpen(false)}>
+      <Modal
+        title={editingTask ? "编辑下载任务" : "新建下载任务"}
+        open={modalOpen}
+        onOk={handleSubmit}
+        onCancel={() => setModalOpen(false)}
+        destroyOnClose
+      >
         <Form form={form} layout="vertical">
           <Form.Item name="link_id" label="选择链接" rules={[{ required: true }]}>
             <Select placeholder="选择一个下载链接">
-              {links.map((l: Record<string, unknown>) => (
-                <Select.Option key={l.id as number} value={l.id as number}>
-                  {l.name as string}
+              {links.map((l: any) => (
+                <Select.Option key={l.id} value={l.id}>
+                  {l.name}
                 </Select.Option>
               ))}
             </Select>
@@ -130,15 +162,42 @@ export default function Tasks() {
           <Form.Item name="name" label="任务名称" rules={[{ required: true }]}>
             <Input placeholder="输入任务名称" />
           </Form.Item>
-          <Form.Item name="concurrency" label="并发数" initialValue={5}>
+          <Form.Item
+            name="concurrency"
+            label={
+                <span>
+                    并发数&nbsp;
+                    <Tooltip title="单个任务占用的最大连接数，受系统全局并发限制。">
+                        <InfoCircleOutlined />
+                    </Tooltip>
+                </span>
+            }
+            initialValue={5}
+          >
             <InputNumber min={1} max={100} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="target_bytes" label="目标下载量 (MB, 0=无限)" initialValue={0}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="speed_limit" label="单连接限速 (KB/s, 0=不限)" initialValue={0}>
+          <Form.Item
+            name="speed_limit"
+            label={
+                <span>
+                    任务最大速度 (KB/s)&nbsp;
+                    <Tooltip title="该任务下所有并发连接的总下载速度上限。">
+                        <InfoCircleOutlined />
+                    </Tooltip>
+                </span>
+            }
+            initialValue={0}
+          >
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
+          {editingTask?.status === 'running' && (
+            <div style={{ color: '#faad14', fontSize: '12px' }}>
+              <InfoCircleOutlined /> 任务正在运行，修改后的设置将在下次启动时生效。
+            </div>
+          )}
         </Form>
       </Modal>
     </Card>
