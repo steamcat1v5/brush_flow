@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Card, Modal, Form, Input, InputNumber, Select, Space, Table, Tag, message, Popconfirm, Tooltip } from 'antd';
 import { PlusOutlined, PlayCircleOutlined, PauseOutlined, StopOutlined, DeleteOutlined, StopFilled, EditOutlined, InfoCircleOutlined } from '@ant-design/icons';
-import { getTasks, createTask, updateTask, startTask, pauseTask, resumeTask, stopTask, deleteTask, getLinks, stopAllTasks } from '../api';
+import { getTasks, createTask, updateTask, startTask, pauseTask, resumeTask, stopTask, deleteTask, getLinks, stopAllTasks, getSettings } from '../api';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return bytes + ' B';
@@ -24,11 +24,13 @@ export default function Tasks() {
   const [links, setLinks] = useState<any[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<any>(null);
+  const [settings, setSettings] = useState<any>(null);
   const [form] = Form.useForm();
 
   const load = () => {
     getTasks().then((r) => setTasks(r.data));
     getLinks().then((r) => setLinks(r.data));
+    getSettings().then((r) => setSettings(r.data.settings));
   };
 
   useEffect(() => {
@@ -40,6 +42,12 @@ export default function Tasks() {
   const handleOpenCreate = () => {
     setEditingTask(null);
     form.resetFields();
+    if (settings) {
+      form.setFieldsValue({
+        concurrency: Number(settings.default_task_concurrency || 5),
+        speed_limit: Number(settings.speed_limit_per_conn || 0) / 1024,
+      });
+    }
     setModalOpen(true);
   };
 
