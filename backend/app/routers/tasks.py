@@ -72,6 +72,23 @@ async def create_task(data: TaskCreate, db: AsyncSession = Depends(get_db)):
     return _task_to_out(task)
 
 
+@router.put("/{task_id}", response_model=TaskOut)
+async def update_task(task_id: int, data: TaskUpdate, db: AsyncSession = Depends(get_db)):
+    task = await db.get(Task, task_id)
+    if not task:
+        raise HTTPException(404, "任务不存在")
+
+    update_data = data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(task, key, value)
+
+    await db.commit()
+    await db.refresh(task)
+
+    # 如果任务正在运行，提醒用户重启生效（或者我们可以选择在这里不做任何动作，由逻辑自然保证下次启动使用新配置）
+    return _task_to_out(task)
+
+
 @router.get("/{task_id}", response_model=TaskOut)
 async def get_task(task_id: int, db: AsyncSession = Depends(get_db)):
     task = await db.get(Task, task_id)
