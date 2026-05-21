@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(curl -s \"https://api.github.com/search/repositories?q=%E5%88%B7%E6%B5%81%E9%87%8F+%E4%B8%8B%E8%A1%8C&sort=stars&order=desc&per_page=10\")",
+      "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f'{i[\\\\\"full_name\\\\\"]} \\({i[\\\\\"stargazers_count\\\\\"]}★\\): {i[\\\\\"description\\\\\"]}'\\) for i in data.get\\('items',[]\\)]\")",
+      "Bash(curl -s \"https://api.github.com/search/repositories?q=download+traffic+generator+ISP&sort=stars&order=desc&per_page=10\")",
+      "Bash(curl -s \"https://api.github.com/search/repositories?q=%E5%88%B7%E4%B8%8B%E8%A1%8C%E6%B5%81%E9%87%8F&sort=stars&order=desc&per_page=10\")",
+      "Bash(curl -s \"https://api.github.com/search/repositories?q=traffic+generator+download&sort=stars&order=desc&per_page=5\")",
+      "Bash(curl -s \"https://api.github.com/search/repositories?q=%E5%88%B7%E6%B5%81%E9%87%8F+in:name,description&sort=stars&order=desc&per_page=10\")",
+      "Bash(python -c ' *)",
+      "Bash(curl -s \"https://api.github.com/search/repositories?q=%E5%88%B7%E6%B5%81%E9%87%8F&sort=stars&order=desc&per_page=10\")",
+      "Bash(curl -s \"https://api.github.com/search/repositories?q=%E5%88%B7%E6%B5%81%E9%87%8F&sort=stars&order=desc&per_page=10\" -o /tmp/gh_search.json)",
+      "Bash(python *)",
+      "WebFetch(domain:github.com)",
+      "Bash(dir \"E:\\\\WorkCopy\\\\brush_flow\")",
+      "PowerShell(Get-ChildItem \"E:\\\\WorkCopy\\\\brush_flow\" -Force 2>$null; if \\($null -eq \\(Get-ChildItem \"E:\\\\WorkCopy\\\\brush_flow\" -Force 2>$null\\)\\) { \"Directory is empty\" })",
+      "PowerShell(go version *)",
+      "Bash(uv venv *)",
+      "Bash(uv pip *)",
+      "Bash(uv python *)",
+      "Bash(.venv/Scripts/python -c \"from app.main import app; print\\('FastAPI app loaded OK'\\)\")",
+      "Bash(.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000)",
+      "Bash(curl -s http://127.0.0.1:8000/api/health)",
+      "Bash(curl -s http://127.0.0.1:8000/api/links)",
+      "Bash(curl -s http://127.0.0.1:8000/api/settings)",
+      "Bash(curl -s http://127.0.0.1:8000/api/flow/today)",
+      "Bash(taskkill /F /IM uvicorn.exe)",
+      "Bash(uv create *)",
+      "Bash(npm create *)",
+      "Bash(npm install *)",
+      "Bash(yarn add *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}
