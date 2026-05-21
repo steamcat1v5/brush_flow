@@ -85,7 +85,7 @@ async def update_task(task_id: int, data: TaskUpdate, db: AsyncSession = Depends
     await db.commit()
     await db.refresh(task)
 
-    # 如果任务正在运行，提醒用户重启生效（或者我们可以选择在这里不做任何动作，由逻辑自然保证下次启动使用新配置）
+    # 如果任务正在运行，提醒用户重启生效
     return _task_to_out(task)
 
 
@@ -114,7 +114,20 @@ async def start_task(task_id: int, db: AsyncSession = Depends(get_db)):
     if not link:
         raise HTTPException(404, "关联链接不存在")
 
-    # ��果任务之前失败过，重置重试计数
+    # 检查今日流量是否已达标 (仅用于返回提醒)
+    warning = None
+    from app.models.settings_model import Setting
+    stmt = select(Setting).where(Setting.key == "daily_traffic_target_gb")
+    result = await db.execute(stmt)
+    setting = result.scalar_one_or_none()
+    if setting and setting.value != "0":
+        target_gb = float(setting.value)
+        stats = await flow_tracker.get_today_stats()
+        current_gb = stats["total_bytes"] / (1024 ** 3)
+        if current_gb >= target_gb:
+            warning = f"今日下载量 ({current_gb:.2f}GB) 已达到每日目标 ({target_gb:.2f}GB)，任务虽已启动，但可能会被后台熔断机制再次停止。"
+
+    # 如果任务之前失败过，重置重试计数
     task.retry_count = 0
     task.status = "running"
     task.started_at = datetime.now()
@@ -128,7 +141,7 @@ async def start_task(task_id: int, db: AsyncSession = Depends(get_db)):
         target_bytes=task.target_bytes,
         speed_limit=task.speed_limit,
     )
-    return {"ok": True, "message": "任务已启动"}
+    return {"ok": True, "message": "任务已启动", "warning": warning}
 
 
 @router.post("/{task_id}/pause")

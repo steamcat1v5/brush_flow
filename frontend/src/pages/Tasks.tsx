@@ -87,7 +87,17 @@ export default function Tasks() {
   };
 
   const handleAction = async (action: string, id: number) => {
-    if (action === 'start') await startTask(id);
+    if (action === 'start') {
+      const res = await startTask(id);
+      if (res.data.warning) {
+        message.warning({
+          content: res.data.warning,
+          duration: 10, // 停留长一点，确保用户看到
+        });
+      } else {
+        message.success('任务已启动');
+      }
+    }
     else if (action === 'pause') await pauseTask(id);
     else if (action === 'resume') await resumeTask(id);
     else if (action === 'stop') await stopTask(id);
