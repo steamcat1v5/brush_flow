@@ -17,6 +17,7 @@ export default function Settings() {
         auto_stop_cron: s.auto_stop_cron,
         speed_limit_per_conn: Number(s.speed_limit_per_conn || 0) / 1024,
         daily_traffic_target_gb: Number(s.daily_traffic_target_gb || 0),
+        global_speed_limit_kb: Number(s.global_speed_limit_kb || 0),
       });
     });
   }, [form]);
@@ -33,6 +34,7 @@ export default function Settings() {
         auto_stop_cron: values.auto_stop_cron,
         speed_limit_per_conn: String(values.speed_limit_per_conn * 1024),
         daily_traffic_target_gb: String(values.daily_traffic_target_gb),
+        global_speed_limit_kb: String(values.global_speed_limit_kb),
       });
       message.success('设置已保存');
     } catch {
@@ -54,6 +56,9 @@ export default function Settings() {
           <InputNumber min={0} style={{ width: '100%' }} />
         </Form.Item>
         <Form.Item name="daily_traffic_target_gb" label="每日下载目标 (GB, 0=不限)">
+          <InputNumber min={0} style={{ width: '100%' }} />
+        </Form.Item>
+        <Form.Item name="global_speed_limit_kb" label="全局最大下载速度 (KB/s, 0=不限)">
           <InputNumber min={0} style={{ width: '100%' }} />
         </Form.Item>
         <Form.Item name="auto_start_enabled" label="启用定时自动启动" valuePropName="checked">
