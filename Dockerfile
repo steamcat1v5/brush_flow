@@ -28,6 +28,5 @@ ENV BF_PORT=8000
 # Create data directory
 RUN mkdir -p /app/data
 
-EXPOSE 8000
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use python -m app.main to respect settings.port and other env vars
+CMD ["python", "-m", "app.main"]
