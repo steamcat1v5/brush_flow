@@ -61,7 +61,7 @@ async for chunk in resp.content.iter_chunked(settings.chunk_size):
 
 ## 7. 存储架构
 
-*   **SQLite WAL 模式**：考虑到工具的单机使用场景，选用了 SQLite 并开启了 WAL (Write-Ahead Logging) 模���。
+*   **SQLite WAL 模式**：考虑到工具的单机使用场景，选用了 SQLite 并开启了 WAL (Write-Ahead Logging) 模式。
 *   **优势**：零运维、单文件、支持并发读写，完美契合流量日志高频写入的场景。
 
 ---
