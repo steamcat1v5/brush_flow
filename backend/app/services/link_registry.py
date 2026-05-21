@@ -7,37 +7,25 @@ from app.models.link import Link
 
 logger = logging.getLogger(__name__)
 
-# 经过手动验证的长期有效、高带宽链接
+# 经过手动验证的高带宽 CDN 链接
 BUILTIN_RESOURCES = [
     {
-        "name": "Ubuntu 26.04 ISO (官方镜像)",
-        "url": "https://releases.ubuntu.com/26.04/ubuntu-26.04-desktop-amd64.iso",
-        "file_size": 0, # 动态获取
-        "category": "mirror",
-    },
-    {
-        "name": "Ubuntu 24.04.1 ISO (阿里云)",
-        "url": "https://mirrors.aliyun.com/ubuntu-releases/24.04/ubuntu-24.04.1-desktop-amd64.iso",
-        "file_size": 5267128320,
-        "category": "mirror",
-    },
-    {
-        "name": "CentOS 7.9 ISO (阿里云)",
-        "url": "https://mirrors.aliyun.com/centos/7.9.2009/isos/x86_64/CentOS-7-x86_64-DVD-2009.iso",
-        "file_size": 4712300544,
-        "category": "mirror",
-    },
-    {
-        "name": "Debian 12.7 DVD (163镜像)",
-        "url": "https://mirrors.163.com/debian-cd/12.7.0/amd64/iso-dvd/debian-12.7.0-amd64-DVD-1.iso",
-        "file_size": 4011851776,
-        "category": "mirror",
-    },
-    {
-        "name": "Python 3.12.5 Windows 安装包",
-        "url": "https://www.python.org/ftp/python/3.12.5/python-3.12.5-amd64.exe",
-        "file_size": 26565416,
+        "name": "278M 腾讯CDN (QQ)",
+        "url": "https://qqdl.gtimg.cn/qqfile/QQNT/9.9.30/guanwang/6a035910/QQ_9.9.30-260511_x64_01.exe",
+        "file_size": 291491840,
         "category": "software",
+    },
+    {
+        "name": "240M 阿里CDN (学习强国)",
+        "url": "https://wirelesscdn-download.xuexi.cn/publish/xuexi_android/latest/xuexi_android_10002068.apk",
+        "file_size": 251658240,
+        "category": "software",
+    },
+    {
+        "name": "1000MB (浙江大学教育网)",
+        "url": "http://speedtest.zju.edu.cn/1000M",
+        "file_size": 1048576000,
+        "category": "speedtest",
     },
 ]
 
