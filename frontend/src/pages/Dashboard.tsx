@@ -37,6 +37,15 @@ export default function Dashboard() {
   const currentSpeed = wsData?.total_bytes_per_sec ?? today.current_speed;
   const totalBytes = wsData?.total_bytes ?? today.total_bytes;
 
+  // 动态更新图表中的今日数据
+  const chartData = [...dailyData];
+  if (chartData.length > 0) {
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (chartData[0].period_key === todayStr) {
+      chartData[0] = { ...chartData[0], total_bytes: totalBytes };
+    }
+  }
+
   const currentGb = totalBytes / (1024 ** 3);
   const percent = targetGb > 0 ? Math.min(100, Math.round((currentGb / targetGb) * 100)) : 0;
 
@@ -87,7 +96,7 @@ export default function Dashboard() {
       </Row>
 
       <Card title="近30天流量趋势">
-        <FlowChart data={dailyData} title="" />
+        <FlowChart data={chartData} title="" />
       </Card>
     </div>
   );
