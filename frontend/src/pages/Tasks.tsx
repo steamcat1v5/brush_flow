@@ -42,6 +42,10 @@ export default function Tasks() {
     if (values.speed_limit) {
       values.speed_limit = values.speed_limit * 1024;
     }
+    // 转换 MB 为 bytes
+    if (values.target_bytes) {
+      values.target_bytes = values.target_bytes * 1024 * 1024;
+    }
     await createTask(values);
     message.success('任务已创建');
     setModalOpen(false);
@@ -129,7 +133,7 @@ export default function Tasks() {
           <Form.Item name="concurrency" label="并发数" initialValue={5}>
             <InputNumber min={1} max={100} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="target_bytes" label="目标下载量 (字节, 0=无限)" initialValue={0}>
+          <Form.Item name="target_bytes" label="目标下载量 (MB, 0=无限)" initialValue={0}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="speed_limit" label="单连接限速 (KB/s, 0=不限)" initialValue={0}>
