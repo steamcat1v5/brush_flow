@@ -43,7 +43,25 @@ async def get_flow_summary(
         .limit(limit)
     )
     result = await db.execute(stmt)
-    return result.scalars().all()
+    summaries = list(result.scalars().all())
+
+    # 如果请求的是按日统计，且列表里没有今天的数据，则实时计���并插入
+    if period == "day" and len(summaries) < limit:
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        # 检查第一条是否是今天 (因为是 desc 排序)
+        if not summaries or summaries[0].period_key != today_str:
+            stats = await flow_tracker.get_today_stats()
+            today_summary = FlowSummaryOut(
+                period_type="day",
+                period_key=today_str,
+                total_bytes=stats["total_bytes"],
+                task_count=0, # 实时计算较复杂，暂填0
+                avg_speed=stats["current_speed"],
+                peak_speed=0
+            )
+            summaries.insert(0, today_summary)
+
+    return summaries
 
 
 @router.get("/details", response_model=list[FlowLogOut])
