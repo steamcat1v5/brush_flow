@@ -42,7 +42,7 @@ docker-compose up -d
 #### 前端
 
 1. 进入 `frontend` 目录
-2. 安装��赖并启动开发服务器：
+2. 安装依赖并启动开发服务器：
    ```bash
    npm install
    npm run dev
