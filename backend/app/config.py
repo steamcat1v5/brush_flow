@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     class Config:
         env_prefix = "BF_"
         env_file = str(BASE_DIR / ".env")
+        extra = "ignore"
 
 
 settings = Settings()
