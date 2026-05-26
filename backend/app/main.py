@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import ssl  # 提前导入以尝试解决 Windows OpenSSL Applink 错误
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
