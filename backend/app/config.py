@@ -1,3 +1,4 @@
+import ssl  # 预加载以尝试解决 Windows OpenSSL 链接问题
 from pathlib import Path
 from pydantic_settings import BaseSettings
 
