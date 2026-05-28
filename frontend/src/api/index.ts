@@ -66,3 +66,51 @@ export const getSettings = () =>
 
 export const updateSettings = (settings: Record<string, string>) =>
   client.put('/settings', { settings });
+
+// IPTV 源管理
+export const getIptvSources = () =>
+  client.get('/iptv/sources');
+
+export const createIptvSource = (data: { name: string; m3u_url: string }) =>
+  client.post('/iptv/sources', data);
+
+export const deleteIptvSource = (id: number) =>
+  client.delete(`/iptv/sources/${id}`);
+
+export const refreshIptvSource = (id: number) =>
+  client.post(`/iptv/sources/${id}/refresh`);
+
+// IPTV 频道
+export const getIptvChannels = (sourceId: number, group?: string) =>
+  client.get(`/iptv/sources/${sourceId}/channels`, { params: group ? { group } : {} });
+
+// IPTV 任务管理
+export const getIptvTasks = () =>
+  client.get('/iptv/tasks');
+
+export const createIptvTask = (data: {
+  source_id: number; channel_id: number; name: string;
+  speed_limit?: number; target_bytes?: number;
+  auto_switch_enabled?: boolean; auto_switch_interval?: number; switch_mode?: string;
+}) => client.post('/iptv/tasks', data);
+
+export const updateIptvTask = (id: number, data: Record<string, unknown>) =>
+  client.put(`/iptv/tasks/${id}`, data);
+
+export const deleteIptvTask = (id: number) =>
+  client.delete(`/iptv/tasks/${id}`);
+
+export const startIptvTask = (id: number) =>
+  client.post(`/iptv/tasks/${id}/start`);
+
+export const pauseIptvTask = (id: number) =>
+  client.post(`/iptv/tasks/${id}/pause`);
+
+export const resumeIptvTask = (id: number) =>
+  client.post(`/iptv/tasks/${id}/resume`);
+
+export const stopIptvTask = (id: number) =>
+  client.post(`/iptv/tasks/${id}/stop`);
+
+export const stopAllIptvTasks = () =>
+  client.post('/iptv/tasks/stop-all');

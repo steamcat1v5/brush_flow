@@ -21,6 +21,7 @@ async def auto_start_tasks():
     logger.info("触发定时自动启动...")
     try:
         async with async_session() as session:
+            # 启动下载任务
             stmt = select(Task).where(Task.status.in_(["pending", "stopped", "failed"]))
             result = await session.execute(stmt)
             tasks = result.scalars().all()
@@ -40,8 +41,36 @@ async def auto_start_tasks():
                     target_bytes=task.target_bytes,
                     speed_limit=task.speed_limit,
                 )
+
+            # 启动 IPTV 任务
+            from app.models.iptv_task import IptvTask
+            from app.models.iptv_channel import IptvChannel
+            from app.services.iptv_engine import iptv_engine
+
+            iptv_stmt = select(IptvTask).where(IptvTask.status.in_(["pending", "stopped", "failed"]))
+            iptv_result = await session.execute(iptv_stmt)
+            iptv_tasks = iptv_result.scalars().all()
+            for iptv_task in iptv_tasks:
+                ch = await session.get(IptvChannel, iptv_task.channel_id)
+                if not ch:
+                    continue
+
+                iptv_task.status = "running"
+                iptv_task.started_at = datetime.now()
+                await iptv_engine.start_task(
+                    task_id=iptv_task.id,
+                    hls_url=ch.hls_url,
+                    speed_limit=iptv_task.speed_limit,
+                    target_bytes=iptv_task.target_bytes,
+                    auto_switch_enabled=iptv_task.auto_switch_enabled,
+                    auto_switch_interval=iptv_task.auto_switch_interval,
+                    source_id=iptv_task.source_id,
+                    current_channel_id=iptv_task.channel_id,
+                    switch_mode=iptv_task.switch_mode,
+                )
+
             await session.commit()
-            logger.info(f"已自动启动 {len(tasks)} 个任务")
+            logger.info(f"已自动启动 {len(tasks)} 个下载任务，{len(iptv_tasks)} 个 IPTV 任务")
     except Exception as e:
         logger.error(f"自动启动任务失败: {e}")
 
@@ -51,6 +80,7 @@ async def auto_stop_tasks():
     logger.info("触发定时自动停止...")
     try:
         async with async_session() as session:
+            # 停止下载任务
             await download_engine.stop_all()
             stmt = select(Task).where(Task.status == "running")
             result = await session.execute(stmt)
@@ -58,8 +88,21 @@ async def auto_stop_tasks():
             for task in tasks:
                 task.status = "stopped"
                 task.stopped_at = datetime.now()
+
+            # 停止 IPTV 任务
+            from app.models.iptv_task import IptvTask
+            from app.services.iptv_engine import iptv_engine
+
+            await iptv_engine.stop_all()
+            iptv_stmt = select(IptvTask).where(IptvTask.status.in_(["running", "paused"]))
+            iptv_result = await session.execute(iptv_stmt)
+            iptv_tasks = iptv_result.scalars().all()
+            for iptv_task in iptv_tasks:
+                iptv_task.status = "stopped"
+                iptv_task.stopped_at = datetime.now()
+
             await session.commit()
-            logger.info(f"已自动停止 {len(tasks)} 个任务")
+            logger.info(f"已自动停止 {len(tasks)} 个下载任务，{len(iptv_tasks)} 个 IPTV 任务")
     except Exception as e:
         logger.error(f"自动停止任务失败: {e}")
 
