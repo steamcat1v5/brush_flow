@@ -331,6 +331,9 @@ async def stop_all_iptv_tasks(db: AsyncSession = Depends(get_db)):
 @router.get("/proxy")
 async def proxy_stream(url: str = Query(...)):
     """代理 IPTV 流请求，解决浏览器 CORS 和网络访问限制。"""
+    from urllib.parse import urljoin
+    import re
+
     timeout = aiohttp.ClientTimeout(total=None, connect=10)
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -347,6 +350,31 @@ async def proxy_stream(url: str = Query(...)):
 
         content_type = resp.headers.get("Content-Type", "application/octet-stream")
 
+        # 如果是 m3u8 文本内容，重写相对路径为绝对路径
+        if "mpegurl" in content_type.lower() or url.endswith(".m3u8") or url.endswith(".m3u"):
+            body = await resp.text()
+            await resp.release()
+            await session.close()
+
+            base_url = url.rsplit("/", 1)[0] + "/"
+
+            def replace_url(match):
+                line = match.group(0)
+                if line.startswith("#"):
+                    return line
+                # 非注释行，可能是相对路径
+                if not line.startswith("http"):
+                    return urljoin(base_url, line)
+                return line
+
+            body = re.sub(r"^[^#\s].*$", replace_url, body, flags=re.MULTILINE)
+            return StreamingResponse(
+                iter([body.encode("utf-8")]),
+                media_type="application/vnd.apple.mpegurl",
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+
+        # 二进制内容（.ts 分片等），直接流式转发
         async def stream_generator():
             try:
                 async for chunk in resp.content.iter_chunked(65536):
