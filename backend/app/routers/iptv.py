@@ -2,7 +2,7 @@ from datetime import datetime
 
 import aiohttp
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -116,11 +116,7 @@ async def _refresh_channels(source: IptvSource, db: AsyncSession):
     channels = parse_m3u(content)
 
     # 删除旧频道
-    old_channels = await db.execute(
-        select(IptvChannel).where(IptvChannel.source_id == source.id)
-    )
-    for ch in old_channels.scalars().all():
-        await db.delete(ch)
+    await db.execute(delete(IptvChannel).where(IptvChannel.source_id == source.id))
 
     # 插入新频道
     for i, ch in enumerate(channels):
