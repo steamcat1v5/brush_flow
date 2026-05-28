@@ -76,23 +76,6 @@ app.include_router(flow.router)
 app.include_router(settings_router.router)
 
 
-# 挂载前端静态文件
-from pathlib import Path
-_app_dir = Path(__file__).resolve().parent  # /app/app
-_base_dir = _app_dir.parent                # /app
-frontend_path = str(_base_dir / "frontend" / "dist")
-if os.path.exists(frontend_path):
-    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
-
-
-@app.get("/{full_path:path}")
-async def serve_frontend(full_path: str):
-    """处理 React 路由，找不到的文件返回 index.html"""
-    if os.path.exists(os.path.join(frontend_path, full_path)):
-        return FileResponse(os.path.join(frontend_path, full_path))
-    return FileResponse(os.path.join(frontend_path, "index.html"))
-
-
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "app": settings.app_name}
@@ -126,6 +109,23 @@ async def websocket_realtime(ws: WebSocket):
         connected_clients.discard(ws)
     except Exception:
         connected_clients.discard(ws)
+
+
+# 挂载前端静态文件（必须在 API 和 WebSocket 路由之后）
+from pathlib import Path
+_app_dir = Path(__file__).resolve().parent  # /app/app
+_base_dir = _app_dir.parent                # /app
+frontend_path = str(_base_dir / "frontend" / "dist")
+if os.path.exists(frontend_path):
+    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
+
+
+@app.get("/{full_path:path}")
+async def serve_frontend(full_path: str):
+    """处理 React 路由，找不到的文件返回 index.html"""
+    if os.path.exists(os.path.join(frontend_path, full_path)):
+        return FileResponse(os.path.join(frontend_path, full_path))
+    return FileResponse(os.path.join(frontend_path, "index.html"))
 
 
 if __name__ == "__main__":
