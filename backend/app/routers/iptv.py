@@ -348,16 +348,23 @@ async def proxy_stream(url: str = Query(...)):
             raise HTTPException(resp.status, f"上游返回 HTTP {resp.status}")
 
         content_type = resp.headers.get("Content-Type", "application/octet-stream")
-        body = await resp.text()
+        raw = await resp.read()
         await resp.release()
         await session.close()
 
         # 检测是否为 m3u8 内容
         is_m3u8 = ("mpegurl" in content_type.lower()
-                    or url.endswith(".m3u8") or url.endswith(".m3u")
-                    or "#EXTM3U" in body[:200])
+                    or url.endswith(".m3u8") or url.endswith(".m3u"))
+
+        if not is_m3u8:
+            # 检查内容前 200 字节是否含 #EXTM3U
+            try:
+                is_m3u8 = b"#EXTM3U" in raw[:200]
+            except Exception:
+                pass
 
         if is_m3u8:
+            body = raw.decode("utf-8", errors="ignore")
             base_url = url.rsplit("/", 1)[0] + "/"
 
             def to_proxy_url(line: str) -> str:
@@ -378,24 +385,9 @@ async def proxy_stream(url: str = Query(...)):
                 headers={"Access-Control-Allow-Origin": "*"},
             )
 
-        # 非 m3u8（.ts 分片等），重新请求并流式转发
-        session2 = aiohttp.ClientSession(timeout=timeout, headers=headers)
-        resp2 = await session2.get(url)
-        if resp2.status != 200:
-            await resp2.release()
-            await session2.close()
-            raise HTTPException(resp2.status, f"上游返回 HTTP {resp2.status}")
-
-        async def stream_generator():
-            try:
-                async for chunk in resp2.content.iter_chunked(65536):
-                    yield chunk
-            finally:
-                await resp2.release()
-                await session2.close()
-
+        # 非 m3u8（.ts 分片等），直接返回已读取的内容
         return StreamingResponse(
-            stream_generator(),
+            iter([raw]),
             media_type=content_type,
             headers={"Access-Control-Allow-Origin": "*"},
         )
