@@ -77,7 +77,10 @@ app.include_router(settings_router.router)
 
 
 # 挂载前端静态文件
-frontend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend", "dist")
+from pathlib import Path
+_app_dir = Path(__file__).resolve().parent  # /app/app
+_base_dir = _app_dir.parent                # /app
+frontend_path = str(_base_dir / "frontend" / "dist")
 if os.path.exists(frontend_path):
     app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
 
