@@ -331,8 +331,7 @@ async def stop_all_iptv_tasks(db: AsyncSession = Depends(get_db)):
 @router.get("/proxy")
 async def proxy_stream(url: str = Query(...)):
     """代理 IPTV 流请求，解决浏览器 CORS 和网络访问限制。"""
-    from urllib.parse import urljoin
-    import re
+    from urllib.parse import urljoin, quote
 
     timeout = aiohttp.ClientTimeout(total=None, connect=10)
     headers = {
@@ -350,37 +349,59 @@ async def proxy_stream(url: str = Query(...)):
 
         content_type = resp.headers.get("Content-Type", "application/octet-stream")
 
-        # 如果是 m3u8 文本内容，重写相对路径为绝对路径
-        if "mpegurl" in content_type.lower() or url.endswith(".m3u8") or url.endswith(".m3u"):
-            body = await resp.text()
+        # m3u8 文本内容：将所有 URL 改写为代理 URL
+        is_m3u8 = ("mpegurl" in content_type.lower()
+                    or url.endswith(".m3u8") or url.endswith(".m3u")
+                    or "#EXTM3U" in (await resp.text() if resp.content_type.startswith("text") else ""))
+
+        if not is_m3u8:
+            # 非 m3u8，重新请求（因为已经读了 body 来检测）
             await resp.release()
+
+        if is_m3u8:
+            if not resp.closed:
+                body = await resp.text()
+                await resp.release()
             await session.close()
 
             base_url = url.rsplit("/", 1)[0] + "/"
 
-            def replace_url(match):
-                line = match.group(0)
+            def to_proxy_url(line: str) -> str:
+                """将一行内容改写为代理 URL。"""
                 if line.startswith("#"):
                     return line
-                # 非注释行，可能是相对路径
-                if not line.startswith("http"):
-                    return urljoin(base_url, line)
-                return line
+                if not line.strip():
+                    return line
+                # 解析为绝对 URL
+                if line.startswith("http"):
+                    abs_url = line
+                else:
+                    abs_url = urljoin(base_url, line)
+                # 改写为代理 URL
+                return f"/api/iptv/proxy?url={quote(abs_url, safe='')}"
 
-            body = re.sub(r"^[^#\s].*$", replace_url, body, flags=re.MULTILINE)
+            lines = body.splitlines()
+            rewritten = "\n".join(to_proxy_url(line) for line in lines)
+
             return StreamingResponse(
-                iter([body.encode("utf-8")]),
+                iter([rewritten.encode("utf-8")]),
                 media_type="application/vnd.apple.mpegurl",
                 headers={"Access-Control-Allow-Origin": "*"},
             )
 
-        # 二进制内容（.ts 分片等），直接流式转发
+        # 二进制内容（.ts 分片等），重新请求并流式转发
+        resp2 = await session.get(url)
+        if resp2.status != 200:
+            await resp2.release()
+            await session.close()
+            raise HTTPException(resp2.status, f"上游返回 HTTP {resp2.status}")
+
         async def stream_generator():
             try:
-                async for chunk in resp.content.iter_chunked(65536):
+                async for chunk in resp2.content.iter_chunked(65536):
                     yield chunk
             finally:
-                await resp.release()
+                await resp2.release()
                 await session.close()
 
         return StreamingResponse(
