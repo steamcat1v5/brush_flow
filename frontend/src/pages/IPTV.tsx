@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   Button, Card, Modal, Form, Input, InputNumber, Select, Space, Table, Tag,
-  message, Popconfirm, Switch, Divider, List,
+  message, Popconfirm, Switch, Divider, List, Drawer, Collapse, Empty,
 } from 'antd';
 import {
   PlusOutlined, PlayCircleOutlined, PauseOutlined, StopOutlined,
-  DeleteOutlined, StopFilled, EditOutlined, SyncOutlined,
+  DeleteOutlined, StopFilled, EditOutlined, SyncOutlined, EyeOutlined,
+  VideoCameraOutlined, UnorderedListOutlined,
 } from '@ant-design/icons';
+import Hls from 'hls.js';
 import {
   getIptvSources, createIptvSource, deleteIptvSource, refreshIptvSource,
   getIptvChannels, getIptvTasks, createIptvTask, updateIptvTask,
@@ -63,37 +65,135 @@ interface IptvTask {
   created_at: string;
 }
 
+// ---- 视频预览组件 ----
+function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (Hls.isSupported()) {
+      const hls = new Hls();
+      hls.loadSource(url);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.fatal) {
+          message.error('视频流加载失败');
+          onClose();
+        }
+      });
+      hlsRef.current = hls;
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari 原生支持
+      video.src = url;
+      video.addEventListener('loadedmetadata', () => video.play().catch(() => {}));
+    } else {
+      message.error('当前浏览器不支持 HLS 播放');
+      onClose();
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [url, onClose]);
+
+  return (
+    <video
+      ref={videoRef}
+      controls
+      autoPlay
+      muted
+      style={{ width: '100%', maxHeight: '70vh', background: '#000' }}
+    />
+  );
+}
+
+// ---- 主页面 ----
 export default function IPTV() {
   const [sources, setSources] = useState<IptvSource[]>([]);
   const [tasks, setTasks] = useState<IptvTask[]>([]);
-  const [channels, setChannels] = useState<IptvChannel[]>([]);
-  const [channelGroups, setChannelGroups] = useState<string[]>([]);
 
+  // 频道抽屉
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerSource, setDrawerSource] = useState<IptvSource | null>(null);
+  const [drawerChannels, setDrawerChannels] = useState<IptvChannel[]>([]);
+
+  // 视频预览
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewName, setPreviewName] = useState('');
+
+  // 弹窗
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<IptvTask | null>(null);
   const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
+  const [taskFormChannels, setTaskFormChannels] = useState<IptvChannel[]>([]);
+  const [taskFormGroups, setTaskFormGroups] = useState<string[]>([]);
 
   const [sourceForm] = Form.useForm();
   const [taskForm] = Form.useForm();
 
-  const load = () => {
+  const load = useCallback(() => {
     getIptvSources().then((r) => setSources(r.data));
     getIptvTasks().then((r) => setTasks(r.data));
-  };
+  }, []);
 
   useEffect(() => {
     load();
     const timer = setInterval(load, 2000);
     return () => clearInterval(timer);
-  }, []);
+  }, [load]);
 
-  // 加载频道列表
-  const loadChannels = async (sourceId: number) => {
-    const r = await getIptvChannels(sourceId);
-    setChannels(r.data);
-    const groups = [...new Set(r.data.map((c: IptvChannel) => c.group_title))];
-    setChannelGroups(groups);
+  // ---- 频道抽屉 ----
+  const handleOpenDrawer = async (source: IptvSource) => {
+    setDrawerSource(source);
+    setDrawerOpen(true);
+    const r = await getIptvChannels(source.id);
+    setDrawerChannels(r.data);
+  };
+
+  const getGroupedChannels = () => {
+    const groups: Record<string, IptvChannel[]> = {};
+    for (const ch of drawerChannels) {
+      const g = ch.group_title || 'Other';
+      if (!groups[g]) groups[g] = [];
+      groups[g].push(ch);
+    }
+    return groups;
+  };
+
+  // ---- 视频预览 ----
+  const handlePreview = (channel: IptvChannel) => {
+    setPreviewUrl(channel.hls_url);
+    setPreviewName(channel.name);
+    setPreviewOpen(true);
+  };
+
+  // ---- 从抽屉快速创建任务 ----
+  const handleQuickCreateTask = (source: IptvSource, channel: IptvChannel) => {
+    setDrawerOpen(false);
+    setEditingTask(null);
+    taskForm.resetFields();
+    setSelectedSourceId(source.id);
+    // 加载频道列表
+    getIptvChannels(source.id).then((r) => {
+      setTaskFormChannels(r.data);
+      const groups = [...new Set(r.data.map((c: IptvChannel) => c.group_title))];
+      setTaskFormGroups(groups);
+    });
+    taskForm.setFieldsValue({
+      source_id: source.id,
+      channel_id: channel.id,
+      name: channel.name,
+    });
+    setTaskModalOpen(true);
   };
 
   // ---- m3u 源操作 ----
@@ -123,15 +223,19 @@ export default function IPTV() {
     setEditingTask(null);
     taskForm.resetFields();
     setSelectedSourceId(null);
-    setChannels([]);
-    setChannelGroups([]);
+    setTaskFormChannels([]);
+    setTaskFormGroups([]);
     setTaskModalOpen(true);
   };
 
   const handleOpenEdit = (task: IptvTask) => {
     setEditingTask(task);
     setSelectedSourceId(task.source_id);
-    loadChannels(task.source_id);
+    getIptvChannels(task.source_id).then((r) => {
+      setTaskFormChannels(r.data);
+      const groups = [...new Set(r.data.map((c: IptvChannel) => c.group_title))];
+      setTaskFormGroups(groups);
+    });
     taskForm.setFieldsValue({
       source_id: task.source_id,
       channel_id: task.channel_id,
@@ -147,7 +251,11 @@ export default function IPTV() {
 
   const handleSourceChange = (sourceId: number) => {
     setSelectedSourceId(sourceId);
-    loadChannels(sourceId);
+    getIptvChannels(sourceId).then((r) => {
+      setTaskFormChannels(r.data);
+      const groups = [...new Set(r.data.map((c: IptvChannel) => c.group_title))];
+      setTaskFormGroups(groups);
+    });
     taskForm.setFieldValue('channel_id', undefined);
   };
 
@@ -236,6 +344,8 @@ export default function IPTV() {
     },
   ];
 
+  const groupedChannels = getGroupedChannels();
+
   return (
     <div>
       {/* m3u 源管理 */}
@@ -260,6 +370,8 @@ export default function IPTV() {
             renderItem={(source) => (
               <List.Item
                 actions={[
+                  <Button key="channels" type="link" size="small" icon={<UnorderedListOutlined />}
+                    onClick={() => handleOpenDrawer(source)}>查看频道</Button>,
                   <Button key="refresh" type="link" size="small" icon={<SyncOutlined />}
                     onClick={() => handleRefreshSource(source.id)}>刷新</Button>,
                   <Popconfirm key="del" title="删除此源及其所有频道?" onConfirm={() => handleDeleteSource(source.id)}>
@@ -301,6 +413,61 @@ export default function IPTV() {
         <Table dataSource={tasks} columns={columns} rowKey="id" size="middle" />
       </Card>
 
+      {/* 频道列表抽屉 */}
+      <Drawer
+        title={drawerSource ? `${drawerSource.name} - 频道列表` : '频道列表'}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        width={420}
+      >
+        {drawerChannels.length === 0 ? (
+          <Empty description="暂无频道" />
+        ) : (
+          <Collapse
+            defaultActiveKey={Object.keys(groupedChannels)}
+            items={Object.entries(groupedChannels).map(([group, channels]) => ({
+              key: group,
+              label: `${group} (${channels.length})`,
+              children: (
+                <List
+                  size="small"
+                  dataSource={channels}
+                  renderItem={(ch) => (
+                    <List.Item
+                      actions={[
+                        <Button key="preview" type="link" size="small" icon={<EyeOutlined />}
+                          onClick={() => handlePreview(ch)}>预览</Button>,
+                        <Button key="task" type="link" size="small" icon={<VideoCameraOutlined />}
+                          onClick={() => handleQuickCreateTask(drawerSource!, ch)}>创建任务</Button>,
+                      ]}
+                    >
+                      <List.Item.Meta title={ch.name} />
+                    </List.Item>
+                  )}
+                />
+              ),
+            }))}
+          />
+        )}
+      </Drawer>
+
+      {/* 视频预览弹窗 */}
+      <Modal
+        title={`预览: ${previewName}`}
+        open={previewOpen}
+        onCancel={() => {
+          setPreviewOpen(false);
+          setPreviewUrl('');
+        }}
+        footer={null}
+        destroyOnClose
+        width={720}
+      >
+        {previewOpen && previewUrl && (
+          <VideoPreview url={previewUrl} onClose={() => setPreviewOpen(false)} />
+        )}
+      </Modal>
+
       {/* 添加源弹窗 */}
       <Modal
         title="添加 m3u 源"
@@ -338,9 +505,9 @@ export default function IPTV() {
           </Form.Item>
           <Form.Item name="channel_id" label="选择频道" rules={[{ required: true }]}>
             <Select placeholder="选择一个频道" showSearch optionFilterProp="label">
-              {channelGroups.map((group) => (
+              {taskFormGroups.map((group) => (
                 <Select.OptGroup key={group} label={group}>
-                  {channels.filter((c) => c.group_title === group).map((c) => (
+                  {taskFormChannels.filter((c) => c.group_title === group).map((c) => (
                     <Select.Option key={c.id} value={c.id} label={c.name}>{c.name}</Select.Option>
                   ))}
                 </Select.OptGroup>
