@@ -6,6 +6,7 @@ import {
   LinkOutlined,
   BarChartOutlined,
   SettingOutlined,
+  PlayCircleOutlined,
 } from '@ant-design/icons';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
@@ -13,12 +14,14 @@ import Tasks from './pages/Tasks';
 import Links from './pages/Links';
 import FlowHistory from './pages/FlowHistory';
 import Settings from './pages/Settings';
+import IPTV from './pages/IPTV';
 
 const { Header, Sider, Content } = Layout;
 
 const menuItems = [
   { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
   { key: '/tasks', icon: <CloudDownloadOutlined />, label: '任务管理' },
+  { key: '/iptv', icon: <PlayCircleOutlined />, label: 'IPTV' },
   { key: '/links', icon: <LinkOutlined />, label: '链接管理' },
   { key: '/history', icon: <BarChartOutlined />, label: '流量历史' },
   { key: '/settings', icon: <SettingOutlined />, label: '设置' },
@@ -51,6 +54,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/tasks" element={<Tasks />} />
+            <Route path="/iptv" element={<IPTV />} />
             <Route path="/links" element={<Links />} />
             <Route path="/history" element={<FlowHistory />} />
             <Route path="/settings" element={<Settings />} />

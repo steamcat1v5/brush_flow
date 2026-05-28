@@ -24,10 +24,12 @@ DEFAULT_SETTINGS = {
 async def apply_global_settings(settings_dict: dict):
     """提取限速和并发设置并应用到引擎"""
     from app.services.download_engine import download_engine
+    from app.services.iptv_engine import iptv_engine
 
     # 应用限速
     limit_kb = int(settings_dict.get("global_speed_limit_kb", 0))
     download_engine.set_global_limit(limit_kb * 1024)
+    iptv_engine.set_global_limit(limit_kb * 1024)
 
     # 应用并发数
     max_concy = int(settings_dict.get("global_concurrency", 0))

@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 
 from app.config import settings
 from app.database import init_db
-from app.routers import links, tasks, flow, settings as settings_router
+from app.routers import links, tasks, flow, settings as settings_router, iptv
 from app.services.flow_tracker import flow_tracker
 from app.services.link_registry import seed_builtin_links
 from app.services.scheduler import setup_scheduler, scheduler
@@ -31,9 +31,11 @@ async def lifespan(app: FastAPI):
     # 清理启动前的僵尸任务状态
     from sqlalchemy import update
     from app.models.task import Task
+    from app.models.iptv_task import IptvTask
     from app.database import async_session
     async with async_session() as session:
         await session.execute(update(Task).where(Task.status.in_(["running", "paused"])).values(status="stopped"))
+        await session.execute(update(IptvTask).where(IptvTask.status.in_(["running", "paused"])).values(status="stopped"))
         await session.commit()
     logger.info("已重置所有异常关闭的任务状态")
 
@@ -74,6 +76,7 @@ app.include_router(links.router)
 app.include_router(tasks.router)
 app.include_router(flow.router)
 app.include_router(settings_router.router)
+app.include_router(iptv.router)
 
 
 @app.get("/api/health")
