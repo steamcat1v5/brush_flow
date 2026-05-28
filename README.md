@@ -1,42 +1,46 @@
 # BrushFlow - 刷下行流量工具
 
-用于应对国内 ISP 对上传流量的审查，通过自动下载公开大文件来平衡上下行比例。
+用于应对国内 ISP 对上传流量的审查，通过自动下载公开大文件或 IPTV 流来平衡上下行比例。
 
 ## 功能
 
 - **下载链接管理**：内置公开测速资源（Hetzner, Cloudflare, 清华镜像等），支持自定义 URL。
-- **并发控制**：可自定义每个任务的并发连接数。
+- **IPTV 流量消耗**：支持导入 m3u 播放列表，通过持续观看 IPTV 频道消耗下行流量，流量模式更自然，不易被 ISP 风控。
+- **自动换台**：IPTV 任务支持定时自动切换频道（随机或顺序模式），模拟正常电视观看行为。
+- **并发控制**：可自定义每个下载任务的并发连接数。
 - **流量统计**：记录并展示每日、每周、每月的累计下行流量。
-- **Web 管理后台**：仪表盘、任务列表、流量图表和系统设置。
-- **定时调度**：支持通过 Cron 表达式设置全自动启停时间。
-- **流量规划 (熔断机制)**：支持设置“每日下载目标 (GB)”，达标后自动停止所有任务，精准对冲上传流量。
-- **限速功能**：支持任务级及全局限速（令牌桶算法）。
+- **Web 管理后台**：仪表盘、任务列表、IPTV 管理、流量图表和系统设置。
+- **定时调度**：支持通过 Cron 表达式设置全自动启停时间（同时覆盖下载和 IPTV 任务）。
+- **流量规划 (熔断机制)**：支持设置"每日下载目标 (GB)"，达标后自动停止所有任务，精准对冲上传流量。
+- **限速功能**：支持任务级及全局限速（令牌桶算法），同时覆盖下载和 IPTV 任务。
 
 ## 快速开始
 
 ### Docker 部署 (推荐)
 
-```bash
-docker-compose up -d
-```
+1. 从 `.env.example` 创建配置文件：
+   ```bash
+   cp .env.example .env
+   ```
+2. 按需修改端口等配置，然后启动：
+   ```bash
+   docker compose up -d --build
+   ```
 
-访问 `http://localhost:8765` 即可进入管理后台。
+访问 `http://localhost:8765` 即可进入管理后台（端口可在 `.env` 中修改）。
 
 ### 本地开发部署
 
 #### 后端
 
 1. 进入 `backend` 目录
-2. 创建虚拟环境并安装依赖：
+2. 使用 uv 创建虚拟环境并安装依赖：
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # Linux/macOS
-   .venv\Scripts\activate     # Windows
-   pip install -r requirements.txt
+   uv sync
    ```
 3. 启动服务：
    ```bash
-   uvicorn app.main:app --reload
+   uv run python -m app.main
    ```
 
 #### 前端
@@ -48,10 +52,15 @@ docker-compose up -d
    npm run dev
    ```
 
+### 一键启动 (Windows)
+
+双击运行项目根目录下的 `run_local.bat` 即可同时启动前后端。
+
 ## 技术栈
 
 - **后端**: FastAPI, aiohttp, SQLAlchemy, SQLite, APScheduler
 - **前端**: React, Vite, TypeScript, Ant Design, ECharts
+- **包管理**: uv (后端), npm/yarn (前端)
 
 ## 截图
 
