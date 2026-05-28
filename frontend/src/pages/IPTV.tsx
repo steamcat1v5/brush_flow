@@ -80,10 +80,11 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
     if (Hls.isSupported()) {
       const hls = new Hls({
         xhrSetup: (xhr, requestUrl) => {
-          // 将所有 HLS 请求通过代理转发
-          if (requestUrl.startsWith('http')) {
-            xhr.open('GET', `/api/iptv/proxy?url=${encodeURIComponent(requestUrl)}`, true);
-          }
+          // 所有 HLS 请求都通过后端代理转发
+          const proxyReq = requestUrl.startsWith('http')
+            ? `/api/iptv/proxy?url=${encodeURIComponent(requestUrl)}`
+            : `/api/iptv/proxy?url=${encodeURIComponent(new URL(requestUrl, url).href)}`;
+          xhr.open('GET', proxyReq, true);
         },
       });
       hls.loadSource(proxyUrl);
