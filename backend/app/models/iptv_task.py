@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey
+from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -23,4 +23,4 @@ class IptvTask(Base):
     switch_mode: Mapped[str] = mapped_column(String(20), default="random")  # random/sequential
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     stopped_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default="CURRENT_TIMESTAMP")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
