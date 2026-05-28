@@ -1,7 +1,8 @@
 from datetime import datetime
 
 import aiohttp
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -325,3 +326,40 @@ async def stop_all_iptv_tasks(db: AsyncSession = Depends(get_db)):
         task.stopped_at = datetime.now()
     await db.commit()
     return {"ok": True, "stopped_count": len(tasks)}
+
+
+@router.get("/proxy")
+async def proxy_stream(url: str = Query(...)):
+    """代理 IPTV 流请求，解决浏览器 CORS 和网络访问限制。"""
+    timeout = aiohttp.ClientTimeout(total=None, connect=10)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+
+    session = aiohttp.ClientSession(timeout=timeout, headers=headers)
+
+    try:
+        resp = await session.get(url)
+        if resp.status != 200:
+            await session.close()
+            raise HTTPException(resp.status, f"上游返回 HTTP {resp.status}")
+
+        content_type = resp.headers.get("Content-Type", "application/octet-stream")
+
+        async def stream_generator():
+            try:
+                async for chunk in resp.content.iter_chunked(65536):
+                    yield chunk
+            finally:
+                await resp.release()
+                await session.close()
+
+        return StreamingResponse(
+            stream_generator(),
+            media_type=content_type,
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
+    except aiohttp.ClientError as e:
+        await session.close()
+        raise HTTPException(502, f"代理请求失败: {e}")
