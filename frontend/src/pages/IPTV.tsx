@@ -78,15 +78,7 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
     if (!video) return;
 
     if (Hls.isSupported()) {
-      const hls = new Hls({
-        xhrSetup: (xhr, requestUrl) => {
-          // 所有 HLS 请求都通过后端代理转发
-          const proxyReq = requestUrl.startsWith('http')
-            ? `/api/iptv/proxy?url=${encodeURIComponent(requestUrl)}`
-            : `/api/iptv/proxy?url=${encodeURIComponent(new URL(requestUrl, url).href)}`;
-          xhr.open('GET', proxyReq, true);
-        },
-      });
+      const hls = new Hls();
       hls.loadSource(proxyUrl);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
