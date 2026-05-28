@@ -348,36 +348,25 @@ async def proxy_stream(url: str = Query(...)):
             raise HTTPException(resp.status, f"上游返回 HTTP {resp.status}")
 
         content_type = resp.headers.get("Content-Type", "application/octet-stream")
+        body = await resp.text()
+        await resp.release()
+        await session.close()
 
-        # m3u8 文本内容：将所有 URL 改写为代理 URL
+        # 检测是否为 m3u8 内容
         is_m3u8 = ("mpegurl" in content_type.lower()
                     or url.endswith(".m3u8") or url.endswith(".m3u")
-                    or "#EXTM3U" in (await resp.text() if resp.content_type.startswith("text") else ""))
-
-        if not is_m3u8:
-            # 非 m3u8，重新请求（因为已经读了 body 来检测）
-            await resp.release()
+                    or "#EXTM3U" in body[:200])
 
         if is_m3u8:
-            if not resp.closed:
-                body = await resp.text()
-                await resp.release()
-            await session.close()
-
             base_url = url.rsplit("/", 1)[0] + "/"
 
             def to_proxy_url(line: str) -> str:
-                """将一行内容改写为代理 URL。"""
-                if line.startswith("#"):
+                if line.startswith("#") or not line.strip():
                     return line
-                if not line.strip():
-                    return line
-                # 解析为绝对 URL
                 if line.startswith("http"):
                     abs_url = line
                 else:
                     abs_url = urljoin(base_url, line)
-                # 改写为代理 URL
                 return f"/api/iptv/proxy?url={quote(abs_url, safe='')}"
 
             lines = body.splitlines()
@@ -389,11 +378,12 @@ async def proxy_stream(url: str = Query(...)):
                 headers={"Access-Control-Allow-Origin": "*"},
             )
 
-        # 二进制内容（.ts 分片等），重新请求并流式转发
-        resp2 = await session.get(url)
+        # 非 m3u8（.ts 分片等），重新请求并流式转发
+        session2 = aiohttp.ClientSession(timeout=timeout, headers=headers)
+        resp2 = await session2.get(url)
         if resp2.status != 200:
             await resp2.release()
-            await session.close()
+            await session2.close()
             raise HTTPException(resp2.status, f"上游返回 HTTP {resp2.status}")
 
         async def stream_generator():
@@ -402,7 +392,7 @@ async def proxy_stream(url: str = Query(...)):
                     yield chunk
             finally:
                 await resp2.release()
-                await session.close()
+                await session2.close()
 
         return StreamingResponse(
             stream_generator(),
