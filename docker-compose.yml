@@ -5,7 +5,7 @@ services:
     build: .
     container_name: brush-flow
     ports:
-      - "${BF_PORT:-8000}:${BF_PORT:-8000}"
+      - "${BF_PORT:-8765}:${BF_PORT:-8765}"
     volumes:
       - ./data:/app/data
     env_file:

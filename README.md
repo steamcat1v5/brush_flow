@@ -20,7 +20,7 @@
 docker-compose up -d
 ```
 
-访问 `http://localhost:8000` 即可进入管理后台。
+访问 `http://localhost:8765` 即可进入管理后台。
 
 ### 本地开发部署
 

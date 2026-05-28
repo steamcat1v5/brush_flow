@@ -43,7 +43,7 @@ echo ==========================================
 echo 启动尝试已完成！
 echo.
 echo 默认地址 (请参考 .env 配置):
-echo   - 后端文档: http://localhost:8000/docs
+echo   - 后端文档: http://localhost:8765/docs
 echo   - 前端界面: http://localhost:3000
 echo ==========================================
 echo.

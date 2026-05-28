@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     app_name: str = "BrushFlow"
     debug: bool = False
     host: str = "0.0.0.0"
-    port: int = 8000
+    port: int = 8765
 
     db_path: str = str(DATA_DIR / "brush_flow.db")
     db_echo: bool = False
