@@ -69,12 +69,12 @@ async for chunk in resp.content.iter_chunked(settings.chunk_size):
 
 除了传统的文件下载，BrushFlow 还支持通过 IPTV 流媒体消耗下行流量。这种方式的流量模式更自然，类似于正常观看电视，不易被 ISP 风控系统识别。
 
-### HLS 协议处理
+### HLS 流式下载（不解码）
 
-IPTV 流采用 HLS (HTTP Live Streaming) 协议，在 `hls_downloader.py` 中实现：
+IPTV 流采用 HLS (HTTP Live Streaming) 协议，程序**仅下载数据不进行任何视频解码**，CPU 开销极低。在 `hls_downloader.py` 中实现：
 
-1.  **Master Playlist 解析**：获取 m3u8 主播放列表，自动选择最高带宽的变体流。
-2.  **分片下载**：持续获取变体播放列表中的 .ts 分片 URL，逐个流式下载并丢弃。
+1.  **Master Playlist 解析**：获取 m3u8 主播放列表（纯文本），自动选择最高带宽的变体流。
+2.  **分片下载**：持续获取变体播放列表中的 .ts 分片 URL，逐个流式下载并丢弃，与普通文件下载逻辑一致——只计算字节数，不处理视频内容。
 3.  **分片去重**：维护已下载分片的集合（上限 500 条），避免直播流中重复下载同一分片。
 4.  **相对路径处理**：自动将相对路径的分片 URL 解析为绝对路径。
 
