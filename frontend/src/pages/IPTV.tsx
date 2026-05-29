@@ -76,8 +76,8 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
 
     if (Hls.isSupported()) {
       const hls = new Hls({ enableWorker: false });
-      // 通过代理加载，代理会把 m3u8 中所有 URL 改写为代理地址
-      hls.loadSource(`/api/iptv/proxy?url=${encodeURIComponent(url)}`);
+      // 直接用原始 URL 加载，浏览器在同一局域网可直接访问 IPTV 服务器
+      hls.loadSource(url);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_LOADED, (_event, data) => {
