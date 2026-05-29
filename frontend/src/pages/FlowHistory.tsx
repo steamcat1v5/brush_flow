@@ -65,7 +65,7 @@ export default function FlowHistory() {
     { title: '消息', dataIndex: 'message', ellipsis: true },
     {
       title: '时间', dataIndex: 'created_at', width: 180,
-      render: (v: string) => v ? new Date(v).toLocaleString() : '-',
+      render: (v: number) => v ? new Date(v * 1000).toLocaleString() : '-',
     },
   ];
 
