@@ -140,6 +140,7 @@ async def start_task(task_id: int, db: AsyncSession = Depends(get_db)):
         concurrency=task.concurrency,
         target_bytes=task.target_bytes,
         speed_limit=task.speed_limit,
+        initial_downloaded=task.total_downloaded,
     )
     return {"ok": True, "message": "任务已启动", "warning": warning}
 

@@ -6,7 +6,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from app.config import settings
@@ -114,21 +113,23 @@ async def websocket_realtime(ws: WebSocket):
         connected_clients.discard(ws)
 
 
-# 挂载前端静态文件（必须在 API 和 WebSocket 路由之后）
+# 前端静态文件路径
 from pathlib import Path
 _app_dir = Path(__file__).resolve().parent  # /app/app
 _base_dir = _app_dir.parent                # /app
 frontend_path = str(_base_dir / "frontend" / "dist")
-if os.path.exists(frontend_path):
-    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
 
 
 @app.get("/{full_path:path}")
 async def serve_frontend(full_path: str):
-    """处理 React 路由，找不到的文件返回 index.html"""
-    if os.path.exists(os.path.join(frontend_path, full_path)):
-        return FileResponse(os.path.join(frontend_path, full_path))
-    return FileResponse(os.path.join(frontend_path, "index.html"))
+    """处理前端静态文件和 React 路由（SPA）"""
+    if os.path.exists(frontend_path):
+        file_path = os.path.join(frontend_path, full_path)
+        if full_path and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        # 非文件路径一律返回 index.html（SPA 路由）
+        return FileResponse(os.path.join(frontend_path, "index.html"))
+    return {"detail": "Not Found"}
 
 
 if __name__ == "__main__":
