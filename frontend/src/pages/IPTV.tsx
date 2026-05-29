@@ -77,17 +77,19 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
     if (Hls.isSupported()) {
       const hls = new Hls({
         xhrSetup: (xhr, requestUrl) => {
-          // 所有 HLS 请求都通过后端代理转发
+          // 所有 XHR 请求都通过后端代理
           xhr.open('GET', `/api/iptv/proxy?url=${encodeURIComponent(requestUrl)}`, true);
         },
       });
-      // 用原始 URL 加载，让 hls.js 正确解析相对路径
       hls.loadSource(url);
       hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch(() => {});
+      });
       hls.on(Hls.Events.ERROR, (_event, data) => {
+        console.error('HLS error:', data.type, data.details, data);
         if (data.fatal) {
-          message.error('视频流加载失败');
+          message.error(`视频流加载失败: ${data.details || '未知错误'}`);
           onClose();
         }
       });
