@@ -331,8 +331,6 @@ async def stop_all_iptv_tasks(db: AsyncSession = Depends(get_db)):
 @router.get("/proxy")
 async def proxy_stream(url: str = Query(...)):
     """代理 IPTV 流请求，解决浏览器 CORS 和网络访问限制。"""
-    from urllib.parse import urljoin, quote
-
     timeout = aiohttp.ClientTimeout(total=None, connect=10)
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -348,50 +346,17 @@ async def proxy_stream(url: str = Query(...)):
             raise HTTPException(resp.status, f"上游返回 HTTP {resp.status}")
 
         content_type = resp.headers.get("Content-Type", "application/octet-stream")
-        raw = await resp.read()
-        await resp.release()
-        await session.close()
 
-        # 检测是否为 m3u8 内容
-        is_m3u8 = ("mpegurl" in content_type.lower()
-                    or url.endswith(".m3u8") or url.endswith(".m3u"))
-
-        if not is_m3u8:
-            # 检查内容前 200 字节是否含 #EXTM3U
+        async def stream_generator():
             try:
-                is_m3u8 = b"#EXTM3U" in raw[:200]
-            except Exception:
-                pass
+                async for chunk in resp.content.iter_chunked(65536):
+                    yield chunk
+            finally:
+                await resp.release()
+                await session.close()
 
-        if is_m3u8:
-            body = raw.decode("utf-8", errors="ignore")
-            base_url = url.rsplit("/", 1)[0] + "/"
-
-            def to_proxy_url(line: str) -> str:
-                if line.startswith("#") or not line.strip():
-                    return line
-                if line.startswith("http"):
-                    abs_url = line
-                else:
-                    abs_url = urljoin(base_url, line)
-                return f"/api/iptv/proxy?url={quote(abs_url, safe='')}"
-
-            lines = body.splitlines()
-            rewritten = "\n".join(to_proxy_url(line) for line in lines)
-
-            import logging
-            logging.getLogger(__name__).info(f"[IPTV Proxy] 原始 m3u8:\n{body[:500]}")
-            logging.getLogger(__name__).info(f"[IPTV Proxy] 改写后:\n{rewritten[:500]}")
-
-            return StreamingResponse(
-                iter([rewritten.encode("utf-8")]),
-                media_type="application/vnd.apple.mpegurl",
-                headers={"Access-Control-Allow-Origin": "*"},
-            )
-
-        # 非 m3u8（.ts 分片等），直接返回已读取的内容
         return StreamingResponse(
-            iter([raw]),
+            stream_generator(),
             media_type=content_type,
             headers={"Access-Control-Allow-Origin": "*"},
         )
