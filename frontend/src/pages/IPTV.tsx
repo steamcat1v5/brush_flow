@@ -9,7 +9,7 @@ import {
   VideoCameraOutlined, UnorderedListOutlined, FileTextOutlined,
 } from '@ant-design/icons';
 import Hls from 'hls.js';
-import { useNavigate } from 'react-router-dom';
+import TaskLogDrawer from '../components/TaskLogDrawer';
 import {
   getIptvSources, createIptvSource, deleteIptvSource, refreshIptvSource,
   getIptvChannels, getIptvTasks, createIptvTask, updateIptvTask,
@@ -188,9 +188,11 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
 
 // ---- 主页面 ----
 export default function IPTV() {
-  const navigate = useNavigate();
   const [sources, setSources] = useState<IptvSource[]>([]);
   const [tasks, setTasks] = useState<IptvTask[]>([]);
+  const [logDrawer, setLogDrawer] = useState<{ open: boolean; taskId: number; taskName: string }>(
+    { open: false, taskId: 0, taskName: '' }
+  );
 
   // 频道抽屉
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -404,7 +406,7 @@ export default function IPTV() {
             <Button type="link" size="small" danger icon={<StopOutlined />} onClick={() => handleAction('stop', record.id)}>停止</Button>
           )}
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleOpenEdit(record)}>编辑</Button>
-          <Button type="link" size="small" icon={<FileTextOutlined />} onClick={() => navigate(`/history?task_id=${record.id}&task_type=iptv`)}>日志</Button>
+          <Button type="link" size="small" icon={<FileTextOutlined />} onClick={() => setLogDrawer({ open: true, taskId: record.id, taskName: record.name })}>日志</Button>
           <Popconfirm title="确定删除?" onConfirm={() => handleAction('delete', record.id)}>
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button>
           </Popconfirm>
@@ -615,6 +617,14 @@ export default function IPTV() {
           )}
         </Form>
       </Modal>
+
+      <TaskLogDrawer
+        open={logDrawer.open}
+        onClose={() => setLogDrawer({ ...logDrawer, open: false })}
+        taskId={logDrawer.taskId}
+        taskType="iptv"
+        taskName={logDrawer.taskName}
+      />
     </div>
   );
 }
