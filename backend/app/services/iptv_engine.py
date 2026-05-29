@@ -160,10 +160,6 @@ class IptvTaskRunner:
                         break
                     except Exception as e:
                         retry_count += 1
-                        if retry_count >= settings.max_retries:
-                            logger.error(f"IPTV 任务 {self.task_id} 达到最大重试次数，停止")
-                            self.status = "failed"
-                            return
                         wait = min(2 ** retry_count, 30)
                         logger.warning(f"IPTV 任务 {self.task_id} 出错: {e}，{wait}s 后重试")
                         await asyncio.sleep(wait)
