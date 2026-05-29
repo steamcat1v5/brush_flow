@@ -65,6 +65,45 @@ interface IptvTask {
   created_at: string;
 }
 
+// ---- 自定义 HLS Loader，所有请求通过后端代理 ----
+class ProxyLoader {
+  context: any;
+  stats: any;
+
+  constructor(context: any) {
+    this.context = context;
+  }
+
+  load(context: any, config: any, callbacks: any) {
+    this.context = context;
+    const proxyUrl = `/api/iptv/proxy?url=${encodeURIComponent(context.url)}`;
+    this.stats = { loading: { start: performance.now() }, total: 0 };
+
+    fetch(proxyUrl)
+      .then(async (resp) => {
+        if (!resp.ok) {
+          callbacks.onError({ code: resp.status, text: resp.statusText }, context, null);
+          return;
+        }
+        const buffer = await resp.arrayBuffer();
+        this.stats.loading.end = performance.now();
+        this.stats.total = buffer.byteLength;
+        callbacks.onSuccess(
+          { url: context.url, data: buffer },
+          this.stats,
+          context,
+          null
+        );
+      })
+      .catch((err) => {
+        callbacks.onError({ code: 0, text: err.message }, context, null);
+      });
+  }
+
+  abort() {}
+  destroy() {}
+}
+
 // ---- 视频预览组件 ----
 function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -75,20 +114,13 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
     if (!video) return;
 
     if (Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: false });
-      // 直接用原始 URL 加载，浏览器在同一局域网可直接访问 IPTV 服务器
+      const hls = new Hls({
+        enableWorker: false,
+        loader: ProxyLoader as any,
+      });
       hls.loadSource(url);
       hls.attachMedia(video);
 
-      hls.on(Hls.Events.MANIFEST_LOADED, (_event, data) => {
-        console.log('[HLS] MANIFEST_LOADED, levels:', data.levels?.length);
-      });
-      hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
-        console.log('[HLS] LEVEL_LOADED, fragments:', data.details?.fragments?.length);
-      });
-      hls.on(Hls.Events.FRAG_LOADING, (_event, data) => {
-        console.log('[HLS] FRAG_LOADING:', data.frag?.url);
-      });
       hls.on(Hls.Events.FRAG_LOADED, (_event, data) => {
         console.log('[HLS] FRAG_LOADED:', data.frag?.url, 'size:', data.payload?.byteLength);
       });
