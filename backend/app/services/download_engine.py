@@ -75,15 +75,11 @@ class DownloadTask:
 
             try:
                 await self._do_download(worker_id)
+                self._retry_count = 0  # 成功后重置退避计数
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"任务 {self.task_id} worker {worker_id} 发生异常: {e}")
                 self._retry_count += 1
-                if self._retry_count >= settings.max_retries:
-                    logger.error(f"任务 {self.task_id} worker {worker_id} 达到最大重试次数，停止")
-                    self.status = "failed"
-                    break
                 wait = min(2 ** self._retry_count, 30)
                 logger.warning(f"任务 {self.task_id} worker {worker_id} 下载出错: {e}，{wait}s 后重试")
                 await asyncio.sleep(wait)
