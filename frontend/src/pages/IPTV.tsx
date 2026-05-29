@@ -77,21 +77,37 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
     if (Hls.isSupported()) {
       const hls = new Hls({
         xhrSetup: (xhr, requestUrl) => {
+          console.log('[HLS XHR]', requestUrl);
           xhr.open('GET', `/api/iptv/proxy?url=${encodeURIComponent(requestUrl)}`, true);
         },
         fetchSetup: (context, initParams) => {
-          // 将 fetch 请求也通过后端代理
+          console.log('[HLS Fetch]', context.url);
           const proxyUrl = `/api/iptv/proxy?url=${encodeURIComponent(context.url)}`;
           return new Request(proxyUrl, initParams);
         },
       });
       hls.loadSource(url);
       hls.attachMedia(video);
+
+      // 监听所有关键事件
+      hls.on(Hls.Events.MANIFEST_LOADED, (_event, data) => {
+        console.log('[HLS] MANIFEST_LOADED, levels:', data.levels?.length);
+      });
+      hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
+        console.log('[HLS] LEVEL_LOADED, fragments:', data.details?.fragments?.length);
+      });
+      hls.on(Hls.Events.FRAG_LOADING, (_event, data) => {
+        console.log('[HLS] FRAG_LOADING:', data.frag?.url);
+      });
+      hls.on(Hls.Events.FRAG_LOADED, (_event, data) => {
+        console.log('[HLS] FRAG_LOADED:', data.frag?.url, 'size:', data.payload?.byteLength);
+      });
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        console.log('[HLS] MANIFEST_PARSED, starting playback');
         video.play().catch(() => {});
       });
       hls.on(Hls.Events.ERROR, (_event, data) => {
-        console.error('HLS error:', data.type, data.details, data);
+        console.error('[HLS ERROR]', data.type, data.details, data.fatal, data);
         if (data.fatal) {
           message.error(`视频流加载失败: ${data.details || '未知错误'}`);
           onClose();
