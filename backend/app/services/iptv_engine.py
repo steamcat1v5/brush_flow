@@ -1,5 +1,6 @@
 # IPTV 任务在 flow_tracker 中使用 task_id + OFFSET，避免与下载任务 ID 冲突
 IPTV_TASK_ID_OFFSET = 100000
+import asyncio
 import logging
 import random
 import time
