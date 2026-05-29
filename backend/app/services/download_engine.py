@@ -15,14 +15,14 @@ class DownloadTask:
     """单个下载任务"""
 
     def __init__(self, task_id: int, url: str, concurrency: int, target_bytes: int = 0,
-                 speed_limit: int = 0):
+                 speed_limit: int = 0, initial_downloaded: int = 0):
         self.task_id = task_id
         self.url = url
         self.concurrency = concurrency
         self.target_bytes = target_bytes  # 0=无限
         self.speed_limit = speed_limit  # bytes/s per task (共享), 0=不限
         self.status = "pending"
-        self.total_downloaded = 0
+        self.total_downloaded = initial_downloaded
         self._stop_event = asyncio.Event()
         self._pause_event = asyncio.Event()
         self._pause_event.set()  # 初始非暂停
@@ -160,11 +160,12 @@ class DownloadEngine:
         return dict(self._tasks)
 
     async def start_download(self, task_id: int, url: str, concurrency: int,
-                             target_bytes: int = 0, speed_limit: int = 0) -> DownloadTask:
+                             target_bytes: int = 0, speed_limit: int = 0,
+                             initial_downloaded: int = 0) -> DownloadTask:
         if task_id in self._tasks:
             await self._tasks[task_id].stop()
 
-        dl_task = DownloadTask(task_id, url, concurrency, target_bytes, speed_limit)
+        dl_task = DownloadTask(task_id, url, concurrency, target_bytes, speed_limit, initial_downloaded)
         self._tasks[task_id] = dl_task
         await dl_task.start()
         return dl_task
