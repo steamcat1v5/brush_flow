@@ -167,4 +167,16 @@ async def get_task_logs(
         stmt = stmt.where(TaskLog.task_type == task_type)
     stmt = stmt.order_by(TaskLog.id.desc()).limit(limit)
     result = await db.execute(stmt)
-    return result.scalars().all()
+    logs = result.scalars().all()
+    # 返回 Unix 时间戳（秒），由前端根据浏览器时区格式化
+    return [
+        {
+            "id": log.id,
+            "task_id": log.task_id,
+            "task_type": log.task_type,
+            "level": log.level,
+            "message": log.message,
+            "created_at": int(log.created_at.timestamp()) if log.created_at else 0,
+        }
+        for log in logs
+    ]

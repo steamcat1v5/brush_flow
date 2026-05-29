@@ -64,7 +64,7 @@ export default function TaskLogDrawer({ open, onClose, taskId, taskName }: TaskL
     { title: '消息', dataIndex: 'message', ellipsis: true, render: (v: string) => formatMessage(v) },
     {
       title: '时间', dataIndex: 'created_at', width: 170,
-      render: (v: string) => v ? new Date(v).toLocaleString() : '-',
+      render: (v: number) => v ? new Date(v * 1000).toLocaleString() : '-',
     },
   ];
 
