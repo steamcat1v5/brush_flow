@@ -47,7 +47,7 @@ async def list_tasks(
     stmt = select(Task)
     if status:
         stmt = stmt.where(Task.status == status)
-    stmt = stmt.order_by(Task.id.desc())
+    stmt = stmt.order_by(Task.id)
     result = await db.execute(stmt)
     tasks = result.scalars().all()
     return [_task_to_out(t) for t in tasks]

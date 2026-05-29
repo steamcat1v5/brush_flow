@@ -1,4 +1,5 @@
-import asyncio
+# IPTV 任务在 flow_tracker 中使用 task_id + OFFSET，避免与下载任务 ID 冲突
+IPTV_TASK_ID_OFFSET = 100000
 import logging
 import random
 import time
@@ -126,7 +127,7 @@ class IptvTaskRunner:
                                 bytes_down = await hls_downloader.download_segment(
                                     session=session,
                                     segment_url=seg_url,
-                                    flow_callback=lambda n: flow_tracker.record(self.task_id, n),
+                                    flow_callback=lambda n: flow_tracker.record(self.task_id + IPTV_TASK_ID_OFFSET, n),
                                     limiter=self._limiter,
                                     global_limiter=iptv_engine._global_limiter,
                                     stop_event=self._stop_event,
