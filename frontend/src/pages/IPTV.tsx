@@ -77,8 +77,12 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
     if (Hls.isSupported()) {
       const hls = new Hls({
         xhrSetup: (xhr, requestUrl) => {
-          // 所有 XHR 请求都通过后端代理
           xhr.open('GET', `/api/iptv/proxy?url=${encodeURIComponent(requestUrl)}`, true);
+        },
+        fetchSetup: (context, initParams) => {
+          // 将 fetch 请求也通过后端代理
+          const proxyUrl = `/api/iptv/proxy?url=${encodeURIComponent(context.url)}`;
+          return new Request(proxyUrl, initParams);
         },
       });
       hls.loadSource(url);
