@@ -7,7 +7,6 @@ import aiohttp
 from app.config import settings
 from app.services.flow_tracker import flow_tracker
 from app.services.task_logger import log_task
-from app.utils.format import format_bytes
 from app.utils.limiter import TokenBucket
 
 logger = logging.getLogger(__name__)
@@ -53,7 +52,7 @@ class DownloadTask:
         await asyncio.gather(*self._workers, return_exceptions=True)
         self._workers.clear()
         logger.info(f"任务 {self.task_id} 已停止")
-        await log_task(self.task_id, "download", "info", f"任务停止，累计下载: {format_bytes(self.total_downloaded)}")
+        await log_task(self.task_id, "download", "info", f"任务停止，累计下载: {self.total_downloaded}")
 
     async def pause(self):
         self.status = "paused"
