@@ -94,11 +94,6 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
         }
       });
       hlsRef.current = hls;
-          message.error(`视频流加载失败: ${data.details || '未知错误'}`);
-          onClose();
-        }
-      });
-      hlsRef.current = hls;
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = `/api/iptv/proxy?url=${encodeURIComponent(url)}`;
       video.addEventListener('loadedmetadata', () => video.play().catch(() => {}));
