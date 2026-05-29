@@ -60,6 +60,10 @@ export const getFlowDetails = (params: { task_id?: number; from_date?: string; t
 export const getRealtime = () =>
   client.get('/flow/realtime');
 
+// 任务日志
+export const getTaskLogs = (params?: { task_id?: number; task_type?: string; limit?: number }) =>
+  client.get('/flow/logs', { params });
+
 // 系统设置
 export const getSettings = () =>
   client.get('/settings');

@@ -10,6 +10,7 @@ from app.models.task import Task
 from app.schemas.task import TaskCreate, TaskOut, TaskUpdate
 from app.services.download_engine import download_engine
 from app.services.flow_tracker import flow_tracker
+from app.services.task_logger import log_task
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -142,6 +143,7 @@ async def start_task(task_id: int, db: AsyncSession = Depends(get_db)):
         speed_limit=task.speed_limit,
         initial_downloaded=task.total_downloaded,
     )
+    await log_task(task.id, "download", "info", "用户手动启动任务")
     return {"ok": True, "message": "任务已启动", "warning": warning}
 
 
@@ -154,6 +156,7 @@ async def pause_task(task_id: int, db: AsyncSession = Depends(get_db)):
     await download_engine.pause_download(task_id)
     task.status = "paused"
     await db.commit()
+    await log_task(task_id, "download", "info", "用户暂停任务")
     return {"ok": True, "message": "任务已暂停"}
 
 
@@ -166,6 +169,7 @@ async def resume_task(task_id: int, db: AsyncSession = Depends(get_db)):
     await download_engine.resume_download(task_id)
     task.status = "running"
     await db.commit()
+    await log_task(task_id, "download", "info", "用户恢复任务")
     return {"ok": True, "message": "任务已恢复"}
 
 
@@ -184,6 +188,7 @@ async def stop_task(task_id: int, db: AsyncSession = Depends(get_db)):
     task.status = "stopped"
     task.stopped_at = datetime.now()
     await db.commit()
+    await log_task(task_id, "download", "info", "用户停止任务")
     return {"ok": True, "message": "任务已停止"}
 
 
