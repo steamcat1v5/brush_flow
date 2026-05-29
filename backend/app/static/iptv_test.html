@@ -72,20 +72,12 @@
         return;
       }
 
-      hls = new Hls({
-        enableWorker: false,
-        // 方式1: xhrSetup 拦截所有请求走代理
-        xhrSetup: useProxy ? (xhr, requestUrl) => {
-          const proxyReq = requestUrl.startsWith('http')
-            ? toProxyUrl(requestUrl)
-            : toProxyUrl(new URL(requestUrl, originalUrl).href);
-          log('XHR: ' + proxyReq.substring(0, 120) + '...');
-          xhr.open('GET', proxyReq, true);
-        } : undefined,
-      });
+      hls = new Hls({ enableWorker: false });
 
-      // loadSource 始终用原始 URL，hls.js 内部解析相对路径
-      hls.loadSource(originalUrl);
+      // loadSource 直接用代理 URL（代理会重写 m3u8 中所有 URL 为代理路径）
+      const sourceUrl = useProxy ? toProxyUrl(originalUrl) : originalUrl;
+      log('loadSource: ' + sourceUrl.substring(0, 120) + '...');
+      hls.loadSource(sourceUrl);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_LOADED, (_e, data) => {
