@@ -198,7 +198,7 @@ iptv_channels ←── iptv_tasks.channel_id
 
 `flow_logs.task_id` 和 `task_logs.task_id` 不设外键约束，因为下载任务和 IPTV 任务使用独立的 ID 空间（IPTV 任务在 flow_tracker 中加了 100000 的偏移量以避免冲突）。
 
-## 8. IPTV 流媒体流量消耗
+## 9. IPTV 流媒体流量消耗
 
 除了传统的文件下载，BrushFlow 还支持通过 IPTV 流媒体消耗下行流量。这种方式的流量模式更自然，类似于正常观看电视，不易被 ISP 风控系统识别。
 
@@ -236,7 +236,7 @@ IPTV 功能与现有架构无缝集成：
 *   **独立数据库表**：IPTV 源、频道、任务分别存储在 `iptv_sources`、`iptv_channels`、`iptv_tasks` 表中，不污染现有的下载任务模型。
 *   **统一控制**：全局限速、每日目标熔断、定时启停等功能同时覆盖下载和 IPTV 任务。
 
-## 9. 部署与环境配置
+## 10. 部署与环境配置
 
 项目支持通过 `.env` 文件进行环境配置，实现了"一次构建，多处运行"：
 
