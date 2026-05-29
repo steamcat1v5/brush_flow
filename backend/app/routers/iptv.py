@@ -379,6 +379,10 @@ async def proxy_stream(url: str = Query(...)):
             lines = body.splitlines()
             rewritten = "\n".join(to_proxy_url(line) for line in lines)
 
+            import logging
+            logging.getLogger(__name__).info(f"[IPTV Proxy] 原始 m3u8:\n{body[:500]}")
+            logging.getLogger(__name__).info(f"[IPTV Proxy] 改写后:\n{rewritten[:500]}")
+
             return StreamingResponse(
                 iter([rewritten.encode("utf-8")]),
                 media_type="application/vnd.apple.mpegurl",
