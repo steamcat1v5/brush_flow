@@ -11,6 +11,7 @@ from app.config import settings
 from app.services.flow_tracker import flow_tracker
 from app.services.hls_downloader import hls_downloader
 from app.services.task_logger import log_task
+from app.utils.format import format_bytes
 from app.utils.limiter import TokenBucket
 from app.database import async_session
 from app.models.iptv_channel import IptvChannel
@@ -64,7 +65,7 @@ class IptvTaskRunner:
             except (asyncio.CancelledError, Exception):
                 pass
         logger.info(f"IPTV 任务 {self.task_id} 已停止，总下载: {self.total_downloaded}")
-        await log_task(self.task_id, "iptv", "info", f"IPTV 任务停止，累计下载: {self.total_downloaded}")
+        await log_task(self.task_id, "iptv", "info", f"IPTV 任务停止，累计下载: {format_bytes(self.total_downloaded)}")
 
     async def pause(self):
         self.status = "paused"
