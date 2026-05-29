@@ -476,7 +476,7 @@ export default function IPTV() {
           </Space>
         }
       >
-        <Table dataSource={tasks} columns={columns} rowKey="id" size="middle" />
+        <Table dataSource={[...tasks].sort((a, b) => a.id - b.id)} columns={columns} rowKey="id" size="middle" />
       </Card>
 
       {/* 频道列表抽屉 */}
