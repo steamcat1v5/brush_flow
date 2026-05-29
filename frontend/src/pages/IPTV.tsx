@@ -69,25 +69,48 @@ interface IptvTask {
 class ProxyLoader {
   context: any;
   stats: any;
+  private _abortController: AbortController | null = null;
 
-  constructor(context: any) {
-    this.context = context;
+  constructor(config: any) {
+    this.stats = this._defaultStats();
   }
 
-  load(context: any, config: any, callbacks: any) {
-    this.context = context;
-    const proxyUrl = `/api/iptv/proxy?url=${encodeURIComponent(context.url)}`;
-    this.stats = { loading: { start: performance.now() }, total: 0 };
+  private _defaultStats() {
+    return {
+      aborted: false,
+      loaded: 0,
+      retry: 0,
+      total: 0,
+      chunkCount: 0,
+      bwEstimate: 0,
+      loading: { start: 0, first: 0, end: 0 },
+      parsing: { start: 0, end: 0 },
+      buffering: { start: 0, first: 0, end: 0 },
+    };
+  }
 
-    fetch(proxyUrl)
+  load(context: any, _config: any, callbacks: any) {
+    this.context = context;
+    this.stats = this._defaultStats();
+    this.stats.loading.start = performance.now();
+    this._abortController = new AbortController();
+
+    const proxyUrl = `/api/iptv/proxy?url=${encodeURIComponent(context.url)}`;
+    console.log('[ProxyLoader] loading:', context.url);
+
+    fetch(proxyUrl, { signal: this._abortController.signal })
       .then(async (resp) => {
         if (!resp.ok) {
+          console.error('[ProxyLoader] HTTP error:', resp.status, context.url);
           callbacks.onError({ code: resp.status, text: resp.statusText }, context, null);
           return;
         }
         const buffer = await resp.arrayBuffer();
+        this.stats.loading.first = performance.now();
         this.stats.loading.end = performance.now();
+        this.stats.loaded = buffer.byteLength;
         this.stats.total = buffer.byteLength;
+        console.log('[ProxyLoader] loaded:', buffer.byteLength, 'bytes from', context.url);
         callbacks.onSuccess(
           { url: context.url, data: buffer },
           this.stats,
@@ -96,12 +119,20 @@ class ProxyLoader {
         );
       })
       .catch((err) => {
+        if (err.name === 'AbortError') return;
+        console.error('[ProxyLoader] fetch error:', err.message, context.url);
         callbacks.onError({ code: 0, text: err.message }, context, null);
       });
   }
 
-  abort() {}
-  destroy() {}
+  abort() {
+    this._abortController?.abort();
+    this.stats.aborted = true;
+  }
+
+  destroy() {
+    this.abort();
+  }
 }
 
 // ---- 视频预览组件 ----
