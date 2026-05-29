@@ -101,7 +101,9 @@ class IptvTaskRunner:
 
                     try:
                         # 解析流地址
+                        logger.debug(f"IPTV 任务 {self.task_id} 解析流地址: {self.hls_url[:80]}...")
                         variant_url = await hls_downloader.resolve_stream_url(session, self.hls_url)
+                        logger.debug(f"IPTV 任务 {self.task_id} 变体地址: {variant_url[:80]}...")
 
                         while not self._stop_event.is_set():
                             await self._pause_event.wait()
@@ -111,9 +113,11 @@ class IptvTaskRunner:
                             # 获取分片列表
                             segments = await hls_downloader.fetch_segment_list(session, variant_url)
                             new_segments = [s for s in segments if s not in seen_segments]
+                            logger.debug(f"IPTV 任务 {self.task_id} 分片列表: {len(segments)} 个, 新增: {len(new_segments)} 个")
 
                             if not new_segments:
                                 # 直播流：等待新分片
+                                logger.debug(f"IPTV 任务 {self.task_id} 无新分片，等待 3s")
                                 await asyncio.sleep(3)
                                 # 检查是否需要换台
                                 if (self.auto_switch_enabled and
@@ -137,6 +141,10 @@ class IptvTaskRunner:
                                     stop_event=self._stop_event,
                                 )
                                 self.total_downloaded += bytes_down
+                                if bytes_down > 0:
+                                    logger.debug(f"IPTV 任务 {self.task_id} 下载分片: {bytes_down} bytes, 累计: {self.total_downloaded}")
+                                else:
+                                    logger.warning(f"IPTV 任务 {self.task_id} 分片下载 0 字节: {seg_url[:80]}")
                                 seen_segments.add(seg_url)
 
                                 # 限制 seen_segments 大小
