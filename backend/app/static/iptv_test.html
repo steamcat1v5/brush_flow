@@ -75,9 +75,8 @@
       hls = new Hls({
         enableWorker: false,
         maxBufferLength: 60,
-        maxMaxBufferLength: 120,
-        backBufferLength: 30,
-        liveDurationInfinity: true,
+        maxMaxBufferLength: 600,
+        backBufferLength: 60,
       });
 
       // loadSource 直接用代理 URL（代理会重写 m3u8 中所有 URL 为代理路径）

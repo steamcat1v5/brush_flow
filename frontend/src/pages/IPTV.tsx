@@ -82,10 +82,9 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
     if (Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: false,
-        maxBufferLength: 60,          // 前向缓冲 60 秒
-        maxMaxBufferLength: 120,      // 最大缓冲上限 120 秒
-        backBufferLength: 30,         // 保留已播放的 30 秒
-        liveDurationInfinity: true,   // 直播流视为无限时长
+        maxBufferLength: 60,
+        maxMaxBufferLength: 600,
+        backBufferLength: 60,
       });
       hls.loadSource(proxyUrl);
       hls.attachMedia(video);
