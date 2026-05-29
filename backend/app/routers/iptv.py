@@ -331,6 +331,8 @@ async def stop_all_iptv_tasks(db: AsyncSession = Depends(get_db)):
 @router.get("/proxy")
 async def proxy_stream(url: str = Query(...)):
     """代理 IPTV 流请求，解决浏览器 CORS 和网络访问限制。"""
+    from urllib.parse import urljoin
+
     timeout = aiohttp.ClientTimeout(total=None, connect=10)
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -347,16 +349,45 @@ async def proxy_stream(url: str = Query(...)):
 
         content_type = resp.headers.get("Content-Type", "application/octet-stream")
 
-        async def stream_generator():
-            try:
-                async for chunk in resp.content.iter_chunked(65536):
-                    yield chunk
-            finally:
-                await resp.release()
-                await session.close()
+        # 尝试读取内容并检测 m3u8
+        try:
+            raw = await resp.read()
+        except Exception:
+            await resp.release()
+            await session.close()
+            raise
+        await resp.release()
+        await session.close()
 
+        # 检测是否为 m3u8
+        is_m3u8 = ("mpegurl" in content_type.lower()
+                    or url.endswith(".m3u8") or url.endswith(".m3u")
+                    or b"#EXTM3U" in raw[:200])
+
+        if is_m3u8:
+            body = raw.decode("utf-8", errors="ignore")
+            base_url = url.rsplit("/", 1)[0] + "/"
+            lines = []
+            for line in body.splitlines():
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#"):
+                    # 非注释行 = URL，改写为绝对路径
+                    if stripped.startswith("http"):
+                        lines.append(stripped)
+                    else:
+                        lines.append(urljoin(base_url, stripped))
+                else:
+                    lines.append(line)
+            rewritten = "\n".join(lines)
+            return StreamingResponse(
+                iter([rewritten.encode("utf-8")]),
+                media_type="application/vnd.apple.mpegurl",
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+
+        # 非 m3u8，直接返回
         return StreamingResponse(
-            stream_generator(),
+            iter([raw]),
             media_type=content_type,
             headers={"Access-Control-Allow-Origin": "*"},
         )
