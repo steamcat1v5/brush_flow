@@ -39,7 +39,7 @@ interface TaskLogDrawerProps {
   taskName?: string;
 }
 
-export default function TaskLogDrawer({ open, onClose, taskId, taskName }: TaskLogDrawerProps) {
+export default function TaskLogDrawer({ open, onClose, taskId, taskType, taskName }: TaskLogDrawerProps) {
   const [logs, setLogs] = useState<TaskLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
