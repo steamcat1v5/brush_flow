@@ -371,19 +371,29 @@ async def stream_proxy(path: str, request: Request, base: str = Query(...)):
 
         if is_m3u8:
             body = raw.decode("utf-8", errors="ignore")
-            stream_base = f"/api/iptv/stream?base={base}"
             lines = []
             for line in body.splitlines():
                 stripped = line.strip()
                 if stripped and not stripped.startswith("#"):
                     if stripped.startswith("http"):
-                        # 绝对 URL：提取路径部分，用 stream 代理
-                        from urllib.parse import urlparse
+                        # 绝对 URL：提取路径+查询参数，用 stream 代理
+                        from urllib.parse import urlparse, quote
                         parsed = urlparse(stripped)
-                        lines.append(f"/api/iptv/stream{parsed.path}?base={parsed.scheme}://{parsed.netloc}")
+                        proxy_path = f"/api/iptv/stream{parsed.path}"
+                        proxy_qs = f"base={quote(parsed.scheme + '://' + parsed.netloc, safe='')}"
+                        if parsed.query:
+                            proxy_qs += f"&{parsed.query}"
+                        lines.append(f"{proxy_path}?{proxy_qs}")
                     else:
-                        # 相对路径
-                        lines.append(f"/api/iptv/stream/{stripped.lstrip('/')}?base={base}")
+                        # 相对路径：可能包含查询参数
+                        from urllib.parse import quote
+                        path_part = stripped.split("?")[0]
+                        query_part = stripped.split("?", 1)[1] if "?" in stripped else ""
+                        proxy_path = f"/api/iptv/stream/{path_part.lstrip('/')}"
+                        proxy_qs = f"base={quote(base, safe='')}"
+                        if query_part:
+                            proxy_qs += f"&{query_part}"
+                        lines.append(f"{proxy_path}?{proxy_qs}")
                 else:
                     lines.append(line)
             rewritten = "\n".join(lines)
