@@ -4,7 +4,7 @@ import {
   message, Popconfirm, Switch, Divider, List, Drawer, Collapse, Empty,
 } from 'antd';
 import {
-  PlusOutlined, PlayCircleOutlined, PauseOutlined, StopOutlined,
+  PlusOutlined, PlayCircleOutlined, StopOutlined,
   DeleteOutlined, StopFilled, EditOutlined, SyncOutlined, EyeOutlined,
   VideoCameraOutlined, UnorderedListOutlined, FileTextOutlined,
 } from '@ant-design/icons';
