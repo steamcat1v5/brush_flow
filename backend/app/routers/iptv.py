@@ -393,7 +393,6 @@ async def stream_proxy(path: str, request: Request, base: str = Query(...)):
                     if parsed.query:
                         proxy_qs += f"&{parsed.query}"
                     lines.append(f"{self_base}/api/iptv/stream{parsed.path}?{proxy_qs}")
-                        lines.append(f"{self_base}/api/iptv/stream/{path_part.lstrip('/')}?{proxy_qs}")
                 else:
                     lines.append(line)
             rewritten = "\n".join(lines)
