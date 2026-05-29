@@ -12,6 +12,7 @@ from app.config import settings
 from app.database import init_db
 from app.routers import links, tasks, flow, settings as settings_router, iptv
 from app.services.flow_tracker import flow_tracker
+from app.services.download_engine import download_engine
 from app.services.link_registry import seed_builtin_links
 from app.services.scheduler import setup_scheduler, scheduler
 
@@ -27,16 +28,67 @@ async def lifespan(app: FastAPI):
     logger.info("BrushFlow 启动中...")
     await init_db()
 
-    # 清理启动前的僵尸任务状态
-    from sqlalchemy import update
+    # 清理暂停状态的任务，恢复之前运行中的任务
+    from sqlalchemy import select, update
     from app.models.task import Task
     from app.models.iptv_task import IptvTask
+    from app.models.link import Link
+    from app.models.iptv_channel import IptvChannel
     from app.database import async_session
+
     async with async_session() as session:
-        await session.execute(update(Task).where(Task.status.in_(["running", "paused"])).values(status="stopped"))
-        await session.execute(update(IptvTask).where(IptvTask.status.in_(["running", "paused"])).values(status="stopped"))
+        # paused 任务重置为 stopped
+        await session.execute(update(Task).where(Task.status == "paused").values(status="stopped"))
+        await session.execute(update(IptvTask).where(IptvTask.status == "paused").values(status="stopped"))
+
+        # 恢复之前 running 的下载任务
+        stmt = select(Task).where(Task.status == "running")
+        result = await session.execute(stmt)
+        download_tasks = result.scalars().all()
+        restored_download = 0
+        for task in download_tasks:
+            link = await session.get(Link, task.link_id)
+            if not link:
+                task.status = "stopped"
+                continue
+            try:
+                await download_engine.start_download(
+                    task_id=task.id, url=link.url, concurrency=task.concurrency,
+                    target_bytes=task.target_bytes, speed_limit=task.speed_limit,
+                    initial_downloaded=task.total_downloaded,
+                )
+                restored_download += 1
+            except Exception as e:
+                logger.error(f"恢复下载任务 {task.id} 失败: {e}")
+                task.status = "stopped"
+
+        # 恢复之前 running 的 IPTV 任务
+        from app.services.iptv_engine import iptv_engine
+        iptv_stmt = select(IptvTask).where(IptvTask.status == "running")
+        iptv_result = await session.execute(iptv_stmt)
+        iptv_tasks_list = iptv_result.scalars().all()
+        restored_iptv = 0
+        for iptv_task in iptv_tasks_list:
+            ch = await session.get(IptvChannel, iptv_task.channel_id)
+            if not ch:
+                iptv_task.status = "stopped"
+                continue
+            try:
+                await iptv_engine.start_task(
+                    task_id=iptv_task.id, hls_url=ch.hls_url,
+                    speed_limit=iptv_task.speed_limit, target_bytes=iptv_task.target_bytes,
+                    auto_switch_enabled=iptv_task.auto_switch_enabled,
+                    auto_switch_interval=iptv_task.auto_switch_interval,
+                    source_id=iptv_task.source_id, current_channel_id=iptv_task.channel_id,
+                    switch_mode=iptv_task.switch_mode,
+                )
+                restored_iptv += 1
+            except Exception as e:
+                logger.error(f"恢复 IPTV 任务 {iptv_task.id} 失败: {e}")
+                iptv_task.status = "stopped"
+
         await session.commit()
-    logger.info("已重置所有异常关闭的任务状态")
+        logger.info(f"已恢复 {restored_download} 个下载任务，{restored_iptv} 个 IPTV 任务")
 
     await seed_builtin_links()
     await flow_tracker.start()
