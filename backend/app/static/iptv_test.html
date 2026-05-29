@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>IPTV Preview Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.6.16"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; }
+    input { width: 100%; padding: 8px; margin: 8px 0; box-sizing: border-box; }
+    button { padding: 8px 16px; margin: 8px 0; cursor: pointer; }
+    video { width: 100%; max-height: 450px; background: #000; margin-top: 16px; }
+    #log { background: #f5f5f5; padding: 12px; margin-top: 16px; font-size: 13px;
+           max-height: 300px; overflow-y: auto; white-space: pre-wrap; }
+    .err { color: red; }
+    .ok { color: green; }
+  </style>
+</head>
+<body>
+  <h2>IPTV 预览测试</h2>
+  <label>m3u8 地址:</label>
+  <input id="url" value="http://10.223.3.189:80/PLTV/88888888/224/3221225701/10000100000000060000000000013592_0.smil/index.m3u8?fmt=ts2hls&zoneoffset=480&servicetype=2&icpid=shlt&limitflux=-1&limitdur=-1&tenantId=8601&GuardEncType=2" />
+  <div>
+    <button onclick="playDirect()">直连播放</button>
+    <button onclick="playProxy()">通过代理播放</button>
+  </div>
+  <video id="video" controls></video>
+  <div id="log"></div>
+
+  <script>
+    const video = document.getElementById('video');
+    const logEl = document.getElementById('log');
+    let hls = null;
+
+    function log(msg, cls) {
+      const t = new Date().toLocaleTimeString();
+      logEl.innerHTML += `<div class="${cls || ''}">[${t}] ${msg}</div>`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function destroy() {
+      if (hls) { hls.destroy(); hls = null; }
+      video.removeAttribute('src');
+      video.load();
+    }
+
+    function toProxyUrl(rawUrl) {
+      const parsed = new URL(rawUrl);
+      return `/api/iptv/stream${parsed.pathname}?base=${encodeURIComponent(parsed.origin)}`;
+    }
+
+    // 方式1: 直连（测试浏览器能否直接访问 IPTV 服务器）
+    function playDirect() {
+      destroy();
+      const url = document.getElementById('url').value.trim();
+      log('直连模式: ' + url);
+      play(url, false);
+    }
+
+    // 方式2: 通过后端代理
+    function playProxy() {
+      destroy();
+      const url = document.getElementById('url').value.trim();
+      const proxyUrl = toProxyUrl(url);
+      log('代理模式: ' + proxyUrl);
+      play(url, true);
+    }
+
+    function play(originalUrl, useProxy) {
+      if (!Hls.isSupported()) {
+        log('浏览器不支持 HLS', 'err');
+        return;
+      }
+
+      hls = new Hls({
+        enableWorker: false,
+        // 方式1: xhrSetup 拦截所有请求走代理
+        xhrSetup: useProxy ? (xhr, requestUrl) => {
+          const proxyReq = requestUrl.startsWith('http')
+            ? toProxyUrl(requestUrl)
+            : toProxyUrl(new URL(requestUrl, originalUrl).href);
+          log('XHR: ' + proxyReq.substring(0, 120) + '...');
+          xhr.open('GET', proxyReq, true);
+        } : undefined,
+      });
+
+      // loadSource 始终用原始 URL，hls.js 内部解析相对路径
+      hls.loadSource(originalUrl);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_LOADED, (_e, data) => {
+        log('MANIFEST_LOADED, levels: ' + data.levels?.length, 'ok');
+      });
+      hls.on(Hls.Events.LEVEL_LOADED, (_e, data) => {
+        log('LEVEL_LOADED, fragments: ' + data.details?.fragments?.length, 'ok');
+      });
+      hls.on(Hls.Events.FRAG_LOADING, (_e, data) => {
+        log('FRAG_LOADING: ' + (data.frag?.url || '').substring(0, 100));
+      });
+      hls.on(Hls.Events.FRAG_LOADED, (_e, data) => {
+        log('FRAG_LOADED: ' + data.payload?.byteLength + ' bytes', 'ok');
+      });
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        log('MANIFEST_PARSED - 开始播放', 'ok');
+        video.play().catch(() => {});
+      });
+      hls.on(Hls.Events.ERROR, (_e, data) => {
+        log('ERROR: ' + data.type + ' / ' + data.details + ' fatal=' + data.fatal, 'err');
+        if (data.fatal) {
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+            log('网络错误，尝试恢复...');
+            hls.startLoad();
+          } else {
+            log('致命错误，停止', 'err');
+            hls.destroy();
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
