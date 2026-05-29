@@ -22,6 +22,7 @@ class HlsDownloader:
                 if resp.status != 200:
                     raise Exception(f"HTTP {resp.status} 获取 m3u8 失败")
                 content = await resp.text()
+                logger.debug(f"m3u8 响应 ({len(content)} bytes): {content[:200]}")
         except Exception as e:
             logger.error(f"解析流地址失败: {e}")
             raise
@@ -70,6 +71,7 @@ class HlsDownloader:
                 if resp.status != 200:
                     raise Exception(f"HTTP {resp.status} 获取变体播放列表失败")
                 content = await resp.text()
+                logger.debug(f"变体 m3u8 响应 ({len(content)} bytes): {content[:200]}")
         except Exception as e:
             logger.error(f"获取分片列表失败: {e}")
             return []
@@ -105,6 +107,7 @@ class HlsDownloader:
         try:
             async with session.get(segment_url) as resp:
                 if resp.status not in (200, 206):
+                    logger.warning(f"分片下载 HTTP {resp.status}: {segment_url[:80]}")
                     raise Exception(f"HTTP {resp.status} 下载分片失败")
 
                 async for chunk in resp.content.iter_chunked(settings.chunk_size):
