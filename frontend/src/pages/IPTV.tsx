@@ -80,7 +80,13 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
     const proxyUrl = `/api/iptv/stream${parsed.pathname}?base=${encodeURIComponent(parsed.origin)}${parsed.search ? '&' + parsed.search.slice(1) : ''}`;
 
     if (Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: false });
+      const hls = new Hls({
+        enableWorker: false,
+        maxBufferLength: 60,          // 前向缓冲 60 秒
+        maxMaxBufferLength: 120,      // 最大缓冲上限 120 秒
+        backBufferLength: 30,         // 保留已播放的 30 秒
+        liveDurationInfinity: true,   // 直播流视为无限时长
+      });
       hls.loadSource(proxyUrl);
       hls.attachMedia(video);
 
