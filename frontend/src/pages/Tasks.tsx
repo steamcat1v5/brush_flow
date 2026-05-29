@@ -133,12 +133,6 @@ export default function Tasks() {
             <Button type="link" size="small" icon={<PlayCircleOutlined />} onClick={() => handleAction('start', record.id)}>启动</Button>
           )}
           {record.status === 'running' && (
-            <Button type="link" size="small" icon={<PauseOutlined />} onClick={() => handleAction('pause', record.id)}>暂停</Button>
-          )}
-          {record.status === 'paused' && (
-            <Button type="link" size="small" icon={<PlayCircleOutlined />} onClick={() => handleAction('resume', record.id)}>恢复</Button>
-          )}
-          {(record.status === 'running' || record.status === 'paused') && (
             <Button type="link" size="small" danger icon={<StopOutlined />} onClick={() => handleAction('stop', record.id)}>停止</Button>
           )}
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleOpenEdit(record)}>编辑</Button>
