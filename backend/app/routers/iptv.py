@@ -16,7 +16,7 @@ from app.schemas.iptv import (
     IptvTaskCreate, IptvTaskUpdate, IptvTaskOut,
 )
 from app.services.m3u_parser import parse_m3u
-from app.services.iptv_engine import iptv_engine
+from app.services.iptv_engine import iptv_engine, IPTV_TASK_ID_OFFSET
 from app.services.flow_tracker import flow_tracker
 
 router = APIRouter(prefix="/api/iptv", tags=["iptv"])
@@ -138,7 +138,7 @@ async def _refresh_channels(source: IptvSource, db: AsyncSession):
 
 def _iptv_task_to_out(task: IptvTask, channel_name: str = "") -> IptvTaskOut:
     runner = iptv_engine.get_runner(task.id)
-    speed = flow_tracker.get_speed(task.id)
+    speed = flow_tracker.get_speed(task.id + IPTV_TASK_ID_OFFSET)
     total = runner.total_downloaded if runner else task.total_downloaded
 
     return IptvTaskOut(
