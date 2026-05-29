@@ -62,6 +62,12 @@
 - **前端**: React, Vite, TypeScript, Ant Design, ECharts
 - **包管理**: uv (后端), npm/yarn (前端)
 
+## 文档
+
+- [技术设计文档](docs/TECHNICAL_DESIGN.md) — 核心技术策略、数据库表结构、部署方案
+- [使用指南](docs/USAGE_GUIDE.md) — 安装部署、功能使用说明
+- [hls.js 参考手册](docs/hlsjs-reference.md) — HLS 播放器配置参数与用法
+
 ## 截图
 
 *(待添加)*
