@@ -328,10 +328,11 @@ async def stop_all_iptv_tasks(db: AsyncSession = Depends(get_db)):
     return {"ok": True, "stopped_count": len(tasks)}
 
 
-@router.get("/proxy")
-async def proxy_stream(url: str = Query(...)):
-    """代理 IPTV 流请求，解决浏览器 CORS 和网络访问限制。"""
-    from urllib.parse import urljoin
+@router.get("/stream/{path:path}")
+async def stream_proxy(path: str, base: str = Query(...)):
+    """路径代理：/api/iptv/stream/PLTV/...?base=http://10.223.3.189:80
+    将请求转发到 base + /path，解决 CORS 问题。"""
+    target_url = f"{base.rstrip('/')}/{path}"
 
     timeout = aiohttp.ClientTimeout(total=None, connect=10)
     headers = {
@@ -340,44 +341,37 @@ async def proxy_stream(url: str = Query(...)):
     }
 
     session = aiohttp.ClientSession(timeout=timeout, headers=headers)
-
     try:
-        resp = await session.get(url)
+        resp = await session.get(target_url)
         if resp.status != 200:
             await session.close()
             raise HTTPException(resp.status, f"上游返回 HTTP {resp.status}")
 
         content_type = resp.headers.get("Content-Type", "application/octet-stream")
-
-        # 尝试读取内容并检测 m3u8
-        try:
-            raw = await resp.read()
-        except Exception:
-            await resp.release()
-            await session.close()
-            raise
+        raw = await resp.read()
         await resp.release()
         await session.close()
 
-        # 检测是否为 m3u8
+        # 检测 m3u8 并改写 URL
         is_m3u8 = ("mpegurl" in content_type.lower()
-                    or url.endswith(".m3u8") or url.endswith(".m3u")
+                    or target_url.endswith(".m3u8") or target_url.endswith(".m3u")
                     or b"#EXTM3U" in raw[:200])
 
         if is_m3u8:
             body = raw.decode("utf-8", errors="ignore")
-            base_url = url.rsplit("/", 1)[0] + "/"
+            stream_base = f"/api/iptv/stream?base={base}"
             lines = []
             for line in body.splitlines():
                 stripped = line.strip()
                 if stripped and not stripped.startswith("#"):
-                    # 非注释行 = URL，改写为代理 URL
                     if stripped.startswith("http"):
-                        abs_url = stripped
+                        # 绝对 URL：提取路径部分，用 stream 代理
+                        from urllib.parse import urlparse
+                        parsed = urlparse(stripped)
+                        lines.append(f"/api/iptv/stream{parsed.path}?base={parsed.scheme}://{parsed.netloc}")
                     else:
-                        abs_url = urljoin(base_url, stripped)
-                    from urllib.parse import quote
-                    lines.append(f"/api/iptv/proxy?url={quote(abs_url, safe='')}")
+                        # 相对路径
+                        lines.append(f"/api/iptv/stream/{stripped.lstrip('/')}?base={base}")
                 else:
                     lines.append(line)
             rewritten = "\n".join(lines)
@@ -387,7 +381,6 @@ async def proxy_stream(url: str = Query(...)):
                 headers={"Access-Control-Allow-Origin": "*"},
             )
 
-        # 非 m3u8，直接返回
         return StreamingResponse(
             iter([raw]),
             media_type=content_type,
