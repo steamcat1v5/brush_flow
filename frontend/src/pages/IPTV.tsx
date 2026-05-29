@@ -65,24 +65,19 @@ interface IptvTask {
   created_at: string;
 }
 
-// ---- 自定义 HLS Loader，所有请求通过后端代理 ----
+// ---- 自定义 HLS Loader，通过路径代理解决 CORS ----
 class ProxyLoader {
   context: any;
   stats: any;
   private _abortController: AbortController | null = null;
 
-  constructor(config: any) {
+  constructor(_config: any) {
     this.stats = this._defaultStats();
   }
 
   private _defaultStats() {
     return {
-      aborted: false,
-      loaded: 0,
-      retry: 0,
-      total: 0,
-      chunkCount: 0,
-      bwEstimate: 0,
+      aborted: false, loaded: 0, retry: 0, total: 0, chunkCount: 0, bwEstimate: 0,
       loading: { start: 0, first: 0, end: 0 },
       parsing: { start: 0, end: 0 },
       buffering: { start: 0, first: 0, end: 0 },
@@ -95,44 +90,40 @@ class ProxyLoader {
     this.stats.loading.start = performance.now();
     this._abortController = new AbortController();
 
-    const proxyUrl = `/api/iptv/proxy?url=${encodeURIComponent(context.url)}`;
-    console.log('[ProxyLoader] loading:', context.url);
+    // 将原始 URL 转为路径代理格式
+    // http://10.223.3.189:80/PLTV/.../file.ts?query -> /api/iptv/stream/PLTV/.../file.ts?base=http://10.223.3.189:80&query
+    const parsed = new URL(context.url);
+    const streamPath = `/api/iptv/stream${parsed.pathname}`;
+    const proxyUrl = `${streamPath}?base=${encodeURIComponent(parsed.origin)}${parsed.search ? '&' + parsed.search.slice(1) : ''}`;
 
     fetch(proxyUrl, { signal: this._abortController.signal })
       .then(async (resp) => {
         if (!resp.ok) {
-          console.error('[ProxyLoader] HTTP error:', resp.status, context.url);
           callbacks.onError({ code: resp.status, text: resp.statusText }, context, null);
           return;
         }
-        const buffer = await resp.arrayBuffer();
+        const ct = resp.headers.get('content-type') || '';
+        let data: string | ArrayBuffer;
+        // m3u8 文本内容传字符串，.ts 分片传 ArrayBuffer
+        if (ct.includes('mpegurl') || ct.includes('text')) {
+          data = await resp.text();
+        } else {
+          data = await resp.arrayBuffer();
+        }
         this.stats.loading.first = performance.now();
         this.stats.loading.end = performance.now();
-        this.stats.loaded = buffer.byteLength;
-        this.stats.total = buffer.byteLength;
-        console.log('[ProxyLoader] loaded:', buffer.byteLength, 'bytes from', context.url);
-        callbacks.onSuccess(
-          { url: context.url, data: buffer },
-          this.stats,
-          context,
-          null
-        );
+        this.stats.loaded = typeof data === 'string' ? data.length : data.byteLength;
+        this.stats.total = this.stats.loaded;
+        callbacks.onSuccess({ url: context.url, data }, this.stats, context, null);
       })
       .catch((err) => {
         if (err.name === 'AbortError') return;
-        console.error('[ProxyLoader] fetch error:', err.message, context.url);
         callbacks.onError({ code: 0, text: err.message }, context, null);
       });
   }
 
-  abort() {
-    this._abortController?.abort();
-    this.stats.aborted = true;
-  }
-
-  destroy() {
-    this.abort();
-  }
+  abort() { this._abortController?.abort(); this.stats.aborted = true; }
+  destroy() { this.abort(); }
 }
 
 // ---- 视频预览组件 ----
