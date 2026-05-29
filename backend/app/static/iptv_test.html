@@ -45,7 +45,8 @@
 
     function toProxyUrl(rawUrl) {
       const parsed = new URL(rawUrl);
-      return `/api/iptv/stream${parsed.pathname}?base=${encodeURIComponent(parsed.origin)}`;
+      const sep = parsed.search ? '&' : '?';
+      return `/api/iptv/stream${parsed.pathname}?base=${encodeURIComponent(parsed.origin)}${sep}${parsed.searchParams.toString()}`;
     }
 
     // 方式1: 直连（测试浏览器能否直接访问 IPTV 服务器）
