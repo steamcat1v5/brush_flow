@@ -204,7 +204,6 @@ export default function IPTV() {
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<IptvTask | null>(null);
-  const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
   const [taskFormChannels, setTaskFormChannels] = useState<IptvChannel[]>([]);
   const [taskFormGroups, setTaskFormGroups] = useState<string[]>([]);
 
@@ -252,11 +251,10 @@ export default function IPTV() {
     setDrawerOpen(false);
     setEditingTask(null);
     taskForm.resetFields();
-    setSelectedSourceId(source.id);
     // 加载频道列表
     getIptvChannels(source.id).then((r) => {
       setTaskFormChannels(r.data);
-      const groups = [...new Set(r.data.map((c: IptvChannel) => c.group_title))];
+      const groups = [...new Set(r.data.map((c: IptvChannel) => c.group_title))] as string[];
       setTaskFormGroups(groups);
     });
     taskForm.setFieldsValue({
@@ -293,7 +291,6 @@ export default function IPTV() {
   const handleOpenCreate = () => {
     setEditingTask(null);
     taskForm.resetFields();
-    setSelectedSourceId(null);
     setTaskFormChannels([]);
     setTaskFormGroups([]);
     setTaskModalOpen(true);
@@ -301,10 +298,9 @@ export default function IPTV() {
 
   const handleOpenEdit = (task: IptvTask) => {
     setEditingTask(task);
-    setSelectedSourceId(task.source_id);
     getIptvChannels(task.source_id).then((r) => {
       setTaskFormChannels(r.data);
-      const groups = [...new Set(r.data.map((c: IptvChannel) => c.group_title))];
+      const groups = [...new Set(r.data.map((c: IptvChannel) => c.group_title))] as string[];
       setTaskFormGroups(groups);
     });
     taskForm.setFieldsValue({
@@ -321,10 +317,9 @@ export default function IPTV() {
   };
 
   const handleSourceChange = (sourceId: number) => {
-    setSelectedSourceId(sourceId);
     getIptvChannels(sourceId).then((r) => {
       setTaskFormChannels(r.data);
-      const groups = [...new Set(r.data.map((c: IptvChannel) => c.group_title))];
+      const groups = [...new Set(r.data.map((c: IptvChannel) => c.group_title))] as string[];
       setTaskFormGroups(groups);
     });
     taskForm.setFieldValue('channel_id', undefined);
