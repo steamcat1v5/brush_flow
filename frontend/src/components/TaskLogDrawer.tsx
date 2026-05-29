@@ -17,6 +17,20 @@ const levelColors: Record<string, string> = {
   error: 'red',
 };
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
+function formatMessage(msg: string): string {
+  // 将消息中紧跟"下载: "或"下载:"后面的数字格式化为可读大小
+  return msg.replace(/(下载[：:]\s*)(\d{4,})/g, (_, prefix, num) => {
+    return prefix + formatBytes(Number(num));
+  });
+}
+
 interface TaskLogDrawerProps {
   open: boolean;
   onClose: () => void;
@@ -47,7 +61,7 @@ export default function TaskLogDrawer({ open, onClose, taskId, taskName }: TaskL
       title: '级别', dataIndex: 'level', width: 70,
       render: (v: string) => <Tag color={levelColors[v] || 'default'}>{v}</Tag>,
     },
-    { title: '消息', dataIndex: 'message', ellipsis: true },
+    { title: '消息', dataIndex: 'message', ellipsis: true, render: (v: string) => formatMessage(v) },
     {
       title: '时间', dataIndex: 'created_at', width: 170,
       render: (v: string) => v ? new Date(v).toLocaleString() : '-',
