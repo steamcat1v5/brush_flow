@@ -1,7 +1,7 @@
 from datetime import datetime
 
 import aiohttp
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -334,12 +334,18 @@ async def stop_all_iptv_tasks(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/stream/{path:path}")
-async def stream_proxy(path: str, base: str = Query(...)):
-    """路径代理：/api/iptv/stream/PLTV/...?base=http://10.223.3.189:80
-    将请求转发到 base + /path，解决 CORS 问题。"""
+async def stream_proxy(path: str, request: Request, base: str = Query(...)):
+    """路径代理，保留原始 URL 的所有查询参数。"""
+    # 从请求中提取除 base 以外的原始查询参数
+    original_params = dict(request.query_params)
+    original_params.pop("base", None)
+    from urllib.parse import urlencode
+    qs = urlencode(original_params)
     target_url = f"{base.rstrip('/')}/{path}"
+    if qs:
+        target_url = f"{target_url}?{qs}"
 
-    timeout = aiohttp.ClientTimeout(total=None, connect=10)
+    timeout = aiohttp.ClientTimeout(total=None, connect=10, sock_read=20)
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                       "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
