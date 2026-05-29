@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.flow_log import FlowLog, FlowSummary
 from app.models.task import Task
+from app.models.task_log import TaskLog
 from app.schemas.flow import FlowLogOut, FlowSummaryOut, TodayStats
 from app.services.flow_tracker import flow_tracker
 
@@ -94,3 +95,20 @@ async def get_realtime():
             for tid, spd in speeds.items()
         ],
     }
+
+
+@router.get("/logs")
+async def get_task_logs(
+    task_id: int | None = None,
+    task_type: str | None = None,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(TaskLog)
+    if task_id is not None:
+        stmt = stmt.where(TaskLog.task_id == task_id)
+    if task_type:
+        stmt = stmt.where(TaskLog.task_type == task_type)
+    stmt = stmt.order_by(TaskLog.id.desc()).limit(limit)
+    result = await db.execute(stmt)
+    return result.scalars().all()

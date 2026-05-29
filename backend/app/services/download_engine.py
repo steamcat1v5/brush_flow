@@ -6,6 +6,7 @@ import aiohttp
 
 from app.config import settings
 from app.services.flow_tracker import flow_tracker
+from app.services.task_logger import log_task
 from app.utils.limiter import TokenBucket
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,7 @@ class DownloadTask:
         self._stop_event.clear()
         self._pause_event.set()
         logger.info(f"任务 {self.task_id} 启动，并发数: {self.concurrency}")
+        await log_task(self.task_id, "download", "info", f"任务启动，并发数: {self.concurrency}")
 
         for i in range(self.concurrency):
             worker = asyncio.create_task(self._worker(i))
@@ -44,12 +46,13 @@ class DownloadTask:
     async def stop(self):
         self.status = "stopped"
         self._stop_event.set()
-        self._pause_event.set()  # 解除暂停以让 worker 退出
+        self._pause_event.set()
         for w in self._workers:
             w.cancel()
         await asyncio.gather(*self._workers, return_exceptions=True)
         self._workers.clear()
         logger.info(f"任务 {self.task_id} 已停止")
+        await log_task(self.task_id, "download", "info", f"任务停止，累计下载: {self.total_downloaded}")
 
     async def pause(self):
         self.status = "paused"
@@ -82,6 +85,7 @@ class DownloadTask:
                 self._retry_count += 1
                 wait = min(2 ** self._retry_count, 30)
                 logger.warning(f"任务 {self.task_id} worker {worker_id} 下载出错: {e}，{wait}s 后重试")
+                await log_task(self.task_id, "download", "warn", f"下载出错: {e}，{wait}s 后重试")
                 await asyncio.sleep(wait)
 
     async def _do_download(self, worker_id: int):

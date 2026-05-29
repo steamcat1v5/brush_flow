@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Button, Card, Modal, Form, Input, InputNumber, Select, Space, Table, Tag, message, Popconfirm, Tooltip } from 'antd';
-import { PlusOutlined, PlayCircleOutlined, PauseOutlined, StopOutlined, DeleteOutlined, StopFilled, EditOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { PlusOutlined, PlayCircleOutlined, PauseOutlined, StopOutlined, DeleteOutlined, StopFilled, EditOutlined, InfoCircleOutlined, FileTextOutlined } from '@ant-design/icons';
 import { getTasks, createTask, updateTask, startTask, pauseTask, resumeTask, stopTask, deleteTask, getLinks, stopAllTasks, getSettings } from '../api';
+import { useNavigate } from 'react-router-dom';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return bytes + ' B';
@@ -20,6 +21,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function Tasks() {
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState<any[]>([]);
   const [links, setLinks] = useState<any[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
@@ -138,6 +140,7 @@ export default function Tasks() {
             <Button type="link" size="small" danger icon={<StopOutlined />} onClick={() => handleAction('stop', record.id)}>停止</Button>
           )}
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleOpenEdit(record)}>编辑</Button>
+          <Button type="link" size="small" icon={<FileTextOutlined />} onClick={() => navigate(`/history?task_id=${record.id}&task_type=download`)}>日志</Button>
           <Popconfirm title="确定删除?" onConfirm={() => handleAction('delete', record.id)}>
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button>
           </Popconfirm>

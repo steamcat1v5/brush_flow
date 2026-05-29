@@ -6,9 +6,10 @@ import {
 import {
   PlusOutlined, PlayCircleOutlined, PauseOutlined, StopOutlined,
   DeleteOutlined, StopFilled, EditOutlined, SyncOutlined, EyeOutlined,
-  VideoCameraOutlined, UnorderedListOutlined,
+  VideoCameraOutlined, UnorderedListOutlined, FileTextOutlined,
 } from '@ant-design/icons';
 import Hls from 'hls.js';
+import { useNavigate } from 'react-router-dom';
 import {
   getIptvSources, createIptvSource, deleteIptvSource, refreshIptvSource,
   getIptvChannels, getIptvTasks, createIptvTask, updateIptvTask,
@@ -187,6 +188,7 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
 
 // ---- 主页面 ----
 export default function IPTV() {
+  const navigate = useNavigate();
   const [sources, setSources] = useState<IptvSource[]>([]);
   const [tasks, setTasks] = useState<IptvTask[]>([]);
 
@@ -402,6 +404,7 @@ export default function IPTV() {
             <Button type="link" size="small" danger icon={<StopOutlined />} onClick={() => handleAction('stop', record.id)}>停止</Button>
           )}
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleOpenEdit(record)}>编辑</Button>
+          <Button type="link" size="small" icon={<FileTextOutlined />} onClick={() => navigate(`/history?task_id=${record.id}&task_type=iptv`)}>日志</Button>
           <Popconfirm title="确定删除?" onConfirm={() => handleAction('delete', record.id)}>
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button>
           </Popconfirm>

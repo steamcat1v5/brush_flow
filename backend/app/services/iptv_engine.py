@@ -10,6 +10,7 @@ import aiohttp
 from app.config import settings
 from app.services.flow_tracker import flow_tracker
 from app.services.hls_downloader import hls_downloader
+from app.services.task_logger import log_task
 from app.utils.limiter import TokenBucket
 from app.database import async_session
 from app.models.iptv_channel import IptvChannel
@@ -50,6 +51,7 @@ class IptvTaskRunner:
         self._pause_event.set()
         self._task = asyncio.create_task(self._main_loop())
         logger.info(f"IPTV 任务 {self.task_id} 启动，频道 URL: {self.hls_url}")
+        await log_task(self.task_id, "iptv", "info", "IPTV 任务启动")
 
     async def stop(self):
         self.status = "stopped"
@@ -62,6 +64,7 @@ class IptvTaskRunner:
             except (asyncio.CancelledError, Exception):
                 pass
         logger.info(f"IPTV 任务 {self.task_id} 已停止，总下载: {self.total_downloaded}")
+        await log_task(self.task_id, "iptv", "info", f"IPTV 任务停止，累计下载: {self.total_downloaded}")
 
     async def pause(self):
         self.status = "paused"
@@ -164,6 +167,7 @@ class IptvTaskRunner:
                         retry_count += 1
                         wait = min(2 ** retry_count, 30)
                         logger.warning(f"IPTV 任务 {self.task_id} 出错: {e}，{wait}s 后重试")
+                        await log_task(self.task_id, "iptv", "warn", f"出错: {e}，{wait}s 后重试")
                         await asyncio.sleep(wait)
 
             except asyncio.CancelledError:
@@ -204,8 +208,10 @@ class IptvTaskRunner:
                 logger.info(
                     f"IPTV 任务 {self.task_id} 换台: {new_channel.name} ({new_channel.group_title})"
                 )
+                await log_task(self.task_id, "iptv", "info", f"换台: {new_channel.name} ({new_channel.group_title})")
         except Exception as e:
             logger.error(f"IPTV 任务 {self.task_id} 换台失败: {e}")
+            await log_task(self.task_id, "iptv", "error", f"换台失败: {e}")
 
         # 重置换台定时器
         self._switch_deadline = time.monotonic() + self.auto_switch_interval

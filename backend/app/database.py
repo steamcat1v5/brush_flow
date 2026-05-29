@@ -21,5 +21,5 @@ async def get_db() -> AsyncSession:
 async def init_db():
     async with engine.begin() as conn:
         from app.models import link, task, flow_log, settings_model  # noqa: F401
-        from app.models import iptv_source, iptv_channel, iptv_task  # noqa: F401
+        from app.models import iptv_source, iptv_channel, iptv_task, task_log  # noqa: F401
         await conn.run_sync(Base.metadata.create_all)

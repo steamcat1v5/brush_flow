@@ -18,6 +18,7 @@ from app.schemas.iptv import (
 from app.services.m3u_parser import parse_m3u
 from app.services.iptv_engine import iptv_engine, IPTV_TASK_ID_OFFSET
 from app.services.flow_tracker import flow_tracker
+from app.services.task_logger import log_task
 
 router = APIRouter(prefix="/api/iptv", tags=["iptv"])
 
@@ -270,6 +271,7 @@ async def start_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
         current_channel_id=task.channel_id,
         switch_mode=task.switch_mode,
     )
+    await log_task(task.id, "iptv", "info", "用户启动 IPTV 任务")
     return {"ok": True, "message": "IPTV 任务已启动", "warning": warning}
 
 
@@ -287,6 +289,7 @@ async def stop_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
     task.status = "stopped"
     task.stopped_at = datetime.now()
     await db.commit()
+    await log_task(task_id, "iptv", "info", "用户停止 IPTV 任务")
     return {"ok": True, "message": "IPTV 任务已停止"}
 
 
@@ -299,6 +302,7 @@ async def pause_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
     await iptv_engine.pause_task(task_id)
     task.status = "paused"
     await db.commit()
+    await log_task(task_id, "iptv", "info", "用户暂停 IPTV 任务")
     return {"ok": True, "message": "IPTV 任务已暂停"}
 
 
@@ -311,6 +315,7 @@ async def resume_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
     await iptv_engine.resume_task(task_id)
     task.status = "running"
     await db.commit()
+    await log_task(task_id, "iptv", "info", "用户恢复 IPTV 任务")
     return {"ok": True, "message": "IPTV 任务已恢复"}
 
 
