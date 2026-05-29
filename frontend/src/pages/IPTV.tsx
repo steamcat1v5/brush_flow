@@ -66,67 +66,6 @@ interface IptvTask {
   created_at: string;
 }
 
-// ---- 自定义 HLS Loader，通过路径代理解决 CORS ----
-class ProxyLoader {
-  context: any;
-  stats: any;
-  private _abortController: AbortController | null = null;
-
-  constructor(_config: any) {
-    this.stats = this._defaultStats();
-  }
-
-  private _defaultStats() {
-    return {
-      aborted: false, loaded: 0, retry: 0, total: 0, chunkCount: 0, bwEstimate: 0,
-      loading: { start: 0, first: 0, end: 0 },
-      parsing: { start: 0, end: 0 },
-      buffering: { start: 0, first: 0, end: 0 },
-    };
-  }
-
-  load(context: any, _config: any, callbacks: any) {
-    this.context = context;
-    this.stats = this._defaultStats();
-    this.stats.loading.start = performance.now();
-    this._abortController = new AbortController();
-
-    // 将原始 URL 转为路径代理格式
-    // http://10.223.3.189:80/PLTV/.../file.ts?query -> /api/iptv/stream/PLTV/.../file.ts?base=http://10.223.3.189:80&query
-    const parsed = new URL(context.url);
-    const streamPath = `/api/iptv/stream${parsed.pathname}`;
-    const proxyUrl = `${streamPath}?base=${encodeURIComponent(parsed.origin)}${parsed.search ? '&' + parsed.search.slice(1) : ''}`;
-
-    fetch(proxyUrl, { signal: this._abortController.signal })
-      .then(async (resp) => {
-        if (!resp.ok) {
-          callbacks.onError({ code: resp.status, text: resp.statusText }, context, null);
-          return;
-        }
-        const ct = resp.headers.get('content-type') || '';
-        let data: string | ArrayBuffer;
-        // m3u8 文本内容传字符串，.ts 分片传 ArrayBuffer
-        if (ct.includes('mpegurl') || ct.includes('text')) {
-          data = await resp.text();
-        } else {
-          data = await resp.arrayBuffer();
-        }
-        this.stats.loading.first = performance.now();
-        this.stats.loading.end = performance.now();
-        this.stats.loaded = typeof data === 'string' ? data.length : data.byteLength;
-        this.stats.total = this.stats.loaded;
-        callbacks.onSuccess({ url: context.url, data }, this.stats, context, null);
-      })
-      .catch((err) => {
-        if (err.name === 'AbortError') return;
-        callbacks.onError({ code: 0, text: err.message }, context, null);
-      });
-  }
-
-  abort() { this._abortController?.abort(); this.stats.aborted = true; }
-  destroy() { this.abort(); }
-}
-
 // ---- 视频预览组件 ----
 function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -136,24 +75,25 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
     const video = videoRef.current;
     if (!video) return;
 
+    // 将原始 IPTV URL 转为代理 URL
+    const parsed = new URL(url);
+    const proxyUrl = `/api/iptv/stream${parsed.pathname}?base=${encodeURIComponent(parsed.origin)}${parsed.search ? '&' + parsed.search.slice(1) : ''}`;
+
     if (Hls.isSupported()) {
-      const hls = new Hls({
-        enableWorker: false,
-        loader: ProxyLoader as any,
-      });
-      hls.loadSource(url);
+      const hls = new Hls({ enableWorker: false });
+      hls.loadSource(proxyUrl);
       hls.attachMedia(video);
 
-      hls.on(Hls.Events.FRAG_LOADED, (_event, data) => {
-        console.log('[HLS] FRAG_LOADED:', data.frag?.url, 'size:', data.payload?.byteLength);
-      });
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        console.log('[HLS] MANIFEST_PARSED, starting playback');
         video.play().catch(() => {});
       });
       hls.on(Hls.Events.ERROR, (_event, data) => {
-        console.error('[HLS ERROR]', data.type, data.details, data.fatal, data);
         if (data.fatal) {
+          message.error(`视频流加载失败: ${data.details || '未知错误'}`);
+          onClose();
+        }
+      });
+      hlsRef.current = hls;
           message.error(`视频流加载失败: ${data.details || '未知错误'}`);
           onClose();
         }
