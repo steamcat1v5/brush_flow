@@ -104,6 +104,7 @@ class IptvTaskRunner:
                         logger.debug(f"IPTV 任务 {self.task_id} 解析流地址: {self.hls_url[:80]}...")
                         variant_url = await hls_downloader.resolve_stream_url(session, self.hls_url)
                         logger.debug(f"IPTV 任务 {self.task_id} 变体地址: {variant_url[:80]}...")
+                        await log_task(self.task_id, "iptv", "info", f"流地址解析成功，开始获取分片")
 
                         while not self._stop_event.is_set():
                             await self._pause_event.wait()
@@ -145,6 +146,7 @@ class IptvTaskRunner:
                                     logger.debug(f"IPTV 任务 {self.task_id} 下载分片: {bytes_down} bytes, 累计: {self.total_downloaded}")
                                 else:
                                     logger.warning(f"IPTV 任务 {self.task_id} 分片下载 0 字节: {seg_url[:80]}")
+                                    await log_task(self.task_id, "iptv", "warn", f"分片下载 0 字节: {seg_url[:80]}")
                                 seen_segments.add(seg_url)
 
                                 # 限制 seen_segments 大小
