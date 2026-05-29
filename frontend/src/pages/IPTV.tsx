@@ -70,16 +70,19 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
-  // 通过后端代理访问，解决 CORS 和网络限制
-  const proxyUrl = `/api/iptv/proxy?url=${encodeURIComponent(url)}`;
-
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     if (Hls.isSupported()) {
-      const hls = new Hls();
-      hls.loadSource(proxyUrl);
+      const hls = new Hls({
+        xhrSetup: (xhr, requestUrl) => {
+          // 所有 HLS 请求都通过后端代理转发
+          xhr.open('GET', `/api/iptv/proxy?url=${encodeURIComponent(requestUrl)}`, true);
+        },
+      });
+      // 用原始 URL 加载，让 hls.js 正确解析相对路径
+      hls.loadSource(url);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
       hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -90,7 +93,7 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
       });
       hlsRef.current = hls;
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = proxyUrl;
+      video.src = `/api/iptv/proxy?url=${encodeURIComponent(url)}`;
       video.addEventListener('loadedmetadata', () => video.play().catch(() => {}));
     } else {
       message.error('当前浏览器不支持 HLS 播放');
@@ -103,7 +106,7 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
         hlsRef.current = null;
       }
     };
-  }, [proxyUrl, onClose]);
+  }, [url, onClose]);
 
   return (
     <video
