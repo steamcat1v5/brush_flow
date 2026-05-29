@@ -26,6 +26,7 @@ COPY --from=frontend-builder /frontend/dist ./frontend/dist
 ENV BF_DB_PATH=/app/data/brush_flow.db
 ENV BF_HOST=0.0.0.0
 ENV BF_PORT=8765
+ENV TZ=Asia/Shanghai
 
 # Create data directory
 RUN mkdir -p /app/data
