@@ -47,7 +47,7 @@ export default function TaskLogDrawer({ open, onClose, taskId, taskName }: TaskL
     if (!open) return;
     const load = () => {
       setLoading(true);
-      getTaskLogs({ task_id: taskId, limit: 200 })
+      getTaskLogs({ task_id: taskId, task_type: taskType, limit: 200 })
         .then((r) => setLogs(r.data))
         .finally(() => setLoading(false));
     };
