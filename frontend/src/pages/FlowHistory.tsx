@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Card, Radio, Space, Table, Tag, Tabs } from 'antd';
+import { Card, Radio, Space, Table, Tag, Tabs, Switch } from 'antd';
 import { getFlowSummary, getTaskLogs } from '../api';
 import FlowChart from '../components/FlowChart';
 
@@ -28,7 +28,9 @@ export default function FlowHistory() {
   const initTab = initTaskId ? 'logs' : 'flow';
 
   const [period, setPeriod] = useState<Period>('day');
-  const [data, setData] = useState<Array<{ period_key: string; total_bytes: number }>>([]);
+  const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
+  const [showSplit, setShowSplit] = useState(false);
+  const [data, setData] = useState<Array<{ period_key: string; total_bytes: number; download_bytes?: number; iptv_bytes?: number }>>([]);
   const [logs, setLogs] = useState<TaskLogEntry[]>([]);
   const [logFilter, setLogFilter] = useState<{ task_id?: number; task_type?: string }>({
     task_id: initTaskId ? Number(initTaskId) : undefined,
@@ -83,10 +85,17 @@ export default function FlowHistory() {
                     <Radio.Button value="week">按周</Radio.Button>
                     <Radio.Button value="month">按月</Radio.Button>
                   </Radio.Group>
+                  <Radio.Group value={chartType} onChange={(e) => setChartType(e.target.value)}>
+                    <Radio.Button value="bar">柱状图</Radio.Button>
+                    <Radio.Button value="line">折线图</Radio.Button>
+                  </Radio.Group>
+                  <span style={{ fontSize: 12 }}>
+                    分类显示 <Switch size="small" checked={showSplit} onChange={setShowSplit} />
+                  </span>
                 </Space>
               }
             >
-              <FlowChart data={data} title={`按${labels[period]}流量统计`} />
+              <FlowChart data={data} title={`按${labels[period]}流量统计`} chartType={chartType} showSplit={showSplit} />
             </Card>
           ),
         },

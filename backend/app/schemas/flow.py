@@ -20,6 +20,8 @@ class FlowSummaryOut(BaseModel):
     task_count: int
     avg_speed: int
     peak_speed: int
+    download_bytes: int = 0
+    iptv_bytes: int = 0
 
     class Config:
         from_attributes = True
