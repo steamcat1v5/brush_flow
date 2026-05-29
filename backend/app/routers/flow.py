@@ -37,6 +37,43 @@ async def get_flow_summary(
     limit: int = 30,
     db: AsyncSession = Depends(get_db),
 ):
+    if period == "week":
+        # 按周：从 flow_logs 按自然周聚合
+        stmt = select(
+            func.strftime("%Y-W%W", FlowLog.logged_at).label("period_key"),
+            func.sum(FlowLog.bytes_down).label("total_bytes"),
+        ).group_by(
+            func.strftime("%Y-W%W", FlowLog.logged_at)
+        ).order_by(
+            func.strftime("%Y-W%W", FlowLog.logged_at).desc()
+        ).limit(limit)
+        result = await db.execute(stmt)
+        rows = result.all()
+        return [
+            FlowSummaryOut(period_type="week", period_key=r.period_key, total_bytes=r.total_bytes or 0,
+                           task_count=0, avg_speed=0, peak_speed=0)
+            for r in rows
+        ]
+
+    if period == "month":
+        # 按月：从 flow_logs 按自然月聚合
+        stmt = select(
+            func.strftime("%Y-%m", FlowLog.logged_at).label("period_key"),
+            func.sum(FlowLog.bytes_down).label("total_bytes"),
+        ).group_by(
+            func.strftime("%Y-%m", FlowLog.logged_at)
+        ).order_by(
+            func.strftime("%Y-%m", FlowLog.logged_at).desc()
+        ).limit(limit)
+        result = await db.execute(stmt)
+        rows = result.all()
+        return [
+            FlowSummaryOut(period_type="month", period_key=r.period_key, total_bytes=r.total_bytes or 0,
+                           task_count=0, avg_speed=0, peak_speed=0)
+            for r in rows
+        ]
+
+    # 按日：优先查 flow_summaries 表（已预聚合的历史数据）
     stmt = (
         select(FlowSummary)
         .where(FlowSummary.period_type == period)
@@ -46,17 +83,16 @@ async def get_flow_summary(
     result = await db.execute(stmt)
     summaries = list(result.scalars().all())
 
-    # 如果请求的是按日统计，且列表里没有今天的数据，则实时计���并插入
-    if period == "day" and len(summaries) < limit:
+    # 如果列表里没有今天的数据，则实时计算并插入
+    if len(summaries) < limit:
         today_str = datetime.now().strftime("%Y-%m-%d")
-        # 检查第一条是否是今天 (因为是 desc 排序)
         if not summaries or summaries[0].period_key != today_str:
             stats = await flow_tracker.get_today_stats()
             today_summary = FlowSummaryOut(
                 period_type="day",
                 period_key=today_str,
                 total_bytes=stats["total_bytes"],
-                task_count=0, # 实时计算较复杂，暂填0
+                task_count=0,
                 avg_speed=stats["current_speed"],
                 peak_speed=0
             )
