@@ -168,7 +168,8 @@ async def get_task_logs(
     stmt = stmt.order_by(TaskLog.id.desc()).limit(limit)
     result = await db.execute(stmt)
     logs = result.scalars().all()
-    # 返回 Unix 时间戳（秒），由前端根据浏览器时区格式化
+    import calendar
+    # SQLite CURRENT_TIMESTAMP 存储 UTC，用 timegm 按 UTC 转为 Unix 时间戳
     return [
         {
             "id": log.id,
@@ -176,7 +177,7 @@ async def get_task_logs(
             "task_type": log.task_type,
             "level": log.level,
             "message": log.message,
-            "created_at": int(log.created_at.timestamp()) if log.created_at else 0,
+            "created_at": calendar.timegm(log.created_at.timetuple()) if log.created_at else 0,
         }
         for log in logs
     ]
