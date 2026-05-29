@@ -65,6 +65,139 @@ async for chunk in resp.content.iter_chunked(settings.chunk_size):
 *   **SQLite WAL 模式**：考虑到工具的单机使用场景，选用了 SQLite 并开启了 WAL (Write-Ahead Logging) 模式。
 *   **优势**：零运维、单文件、支持并发读写，完美契合流量日志高频写入的场景。
 
+## 8. 数据库表结构
+
+共 8 张表，分为下载任务、IPTV 任务、流量统计、系统配置四组。
+
+### 8.1 links — 下载链接
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | Integer PK | 自增主键 |
+| `name` | String(200) | 链接名称 |
+| `url` | String(2000) | 下载地址，唯一 |
+| `file_size` | Integer | 文件大小（字节），默认 0 |
+| `is_builtin` | Boolean | 是否内置链接，默认 false |
+| `is_active` | Boolean | 是否启用，默认 true |
+| `category` | String(50) | 分类，默认 "general" |
+| `created_at` | DateTime | 创建时间 |
+
+### 8.2 tasks — 下载任务
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | Integer PK | 自增主键 |
+| `link_id` | Integer FK → links.id | 关联下载链接 |
+| `name` | String(200) | 任务名称 |
+| `status` | String(20) | 状态：pending/running/paused/completed/failed/stopped |
+| `concurrency` | Integer | 并发连接数，默认 5 |
+| `total_downloaded` | Integer | 累计下载量（字节），跨启停持久化 |
+| `target_bytes` | Integer | 目标下载量（字节），0=无限 |
+| `speed_limit` | Integer | 任务最大速度（bytes/s），0=不限 |
+| `retry_count` | Integer | 当前连续重试次数，成功后重置 |
+| `started_at` | DateTime | 启动时间，可空 |
+| `stopped_at` | DateTime | 停止时间，可空 |
+| `created_at` | DateTime | 创建时间 |
+
+### 8.3 iptv_sources — IPTV m3u 源
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | Integer PK | 自增主键 |
+| `name` | String(200) | 源名称 |
+| `m3u_url` | String(2000) | m3u 播放列表地址，唯一 |
+| `channel_count` | Integer | 频道数量（解析后更新） |
+| `last_parsed_at` | DateTime | 上次解析时间，可空 |
+| `created_at` | DateTime | 创建时间 |
+
+### 8.4 iptv_channels — IPTV 频道
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | Integer PK | 自增主键 |
+| `source_id` | Integer FK → iptv_sources.id | 所属 m3u 源 |
+| `name` | String(200) | 频道名称 |
+| `group_title` | String(100) | 分组（如"央视"、"卫视"），默认空 |
+| `hls_url` | String(2000) | HLS 流地址 |
+| `sort_order` | Integer | 排序序号 |
+
+唯一约束：`(source_id, name)`
+
+### 8.5 iptv_tasks — IPTV 任务
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | Integer PK | 自增主键 |
+| `source_id` | Integer FK → iptv_sources.id | 关联 m3u 源 |
+| `channel_id` | Integer FK → iptv_channels.id | 当前频道 |
+| `name` | String(200) | 任务名称 |
+| `status` | String(20) | 状态：pending/running/paused/completed/failed/stopped |
+| `speed_limit` | Integer | 任务最大速度（bytes/s），0=不限 |
+| `target_bytes` | Integer | 目标下载量（字节），0=无限 |
+| `total_downloaded` | Integer | 累计下载量（字节） |
+| `auto_switch_enabled` | Boolean | 是否启用自动换台，默认 false |
+| `auto_switch_interval` | Integer | 换台间隔（秒），默认 1800 |
+| `switch_mode` | String(20) | 换台模式：random/sequential |
+| `started_at` | DateTime | 启动时间，可空 |
+| `stopped_at` | DateTime | 停止时间，可空 |
+| `created_at` | DateTime | 创建时间 |
+
+### 8.6 flow_logs — 流量日志（分钟粒度）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | Integer PK | 自增主键 |
+| `task_id` | Integer (indexed) | 任务 ID（无 FK，兼容下载和 IPTV 任务） |
+| `bytes_down` | Integer | 该分钟内的下载量（字节） |
+| `logged_at` | DateTime (indexed) | 记录时间 |
+
+唯一约束：`(task_id, logged_at)`
+
+### 8.7 flow_summaries — 流量汇总报表
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | Integer PK | 自增主键 |
+| `period_type` | String(10) | 周期类型：day/week/month |
+| `period_key` | String(20) | 周期标识，如 "2026-05-28" |
+| `total_bytes` | Integer | 总下载量（字节） |
+| `task_count` | Integer | 参与的任务数 |
+| `avg_speed` | Integer | 平均速度（bytes/s） |
+| `peak_speed` | Integer | 峰值速度（bytes/s） |
+| `created_at` | DateTime | 创建时间 |
+
+唯一约束：`(period_type, period_key)`
+
+### 8.8 task_logs — 任务运行日志
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | Integer PK | 自增主键 |
+| `task_id` | Integer (indexed) | 任务 ID（无 FK，兼容下载和 IPTV 任务） |
+| `task_type` | String(20) | 任务类型：download/iptv |
+| `level` | String(10) | 日志级别：info/warn/error |
+| `message` | String(500) | 日志内容 |
+| `created_at` | DateTime | 创建时间 |
+
+### 8.9 settings — 系统配置
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `key` | String(100) PK | 配置键名 |
+| `value` | String(500) | 配置值 |
+| `updated_at` | DateTime | 更新时间 |
+
+### 表间关系
+
+```
+links ←── tasks.link_id
+iptv_sources ←── iptv_channels.source_id
+iptv_sources ←── iptv_tasks.source_id
+iptv_channels ←── iptv_tasks.channel_id
+```
+
+`flow_logs.task_id` 和 `task_logs.task_id` 不设外键约束，因为下载任务和 IPTV 任务使用独立的 ID 空间（IPTV 任务在 flow_tracker 中加了 100000 的偏移量以避免冲突）。
+
 ## 8. IPTV 流媒体流量消耗
 
 除了传统的文件下载，BrushFlow 还支持通过 IPTV 流媒体消耗下行流量。这种方式的流量模式更自然，类似于正常观看电视，不易被 ISP 风控系统识别。
