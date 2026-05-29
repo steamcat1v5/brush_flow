@@ -135,6 +135,18 @@ async def health():
     return {"status": "ok", "app": settings.app_name}
 
 
+# IPTV 预览测试页
+_static_dir = os.path.join(os.path.dirname(__file__), "static")
+
+
+@app.get("/iptv-test")
+async def iptv_test():
+    test_file = os.path.join(_static_dir, "iptv_test.html")
+    if os.path.exists(test_file):
+        return FileResponse(test_file, media_type="text/html")
+    return {"detail": "Not Found"}
+
+
 # WebSocket 实时推送
 connected_clients: set[WebSocket] = set()
 
