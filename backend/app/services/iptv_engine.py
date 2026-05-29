@@ -77,7 +77,7 @@ class IptvTaskRunner:
         logger.info(f"IPTV 任务 {self.task_id} 已恢复")
 
     async def _main_loop(self):
-        timeout = aiohttp.ClientTimeout(total=None, connect=30)
+        timeout = aiohttp.ClientTimeout(total=None, connect=30, sock_read=30)
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                           "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
