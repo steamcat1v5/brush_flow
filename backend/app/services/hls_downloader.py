@@ -129,6 +129,10 @@ class HlsDownloader:
             raise
         except Exception as e:
             logger.warning(f"下载分片出错 {segment_url}: {e}")
+            raise  # 抛出异常，让引擎的重试逻辑处理
+
+        if total == 0:
+            raise Exception(f"分片下载 0 字节: {segment_url[:80]}")
 
         return total
 
