@@ -372,7 +372,9 @@ async def stream_proxy(path: str, request: Request, base: str = Query(...)):
         if is_m3u8:
             body = raw.decode("utf-8", errors="ignore")
             lines = []
-            # 从请求头获取当前服务的主机地址，构造完整绝对 URL
+            from urllib.parse import urlparse, urljoin, quote
+            # target_url 的目录作为相对路径的解析基准
+            target_dir = target_url.rsplit("/", 1)[0] + "/"
             host = request.headers.get("host", "localhost:8765")
             scheme = request.headers.get("x-forwarded-proto", "http")
             self_base = f"{scheme}://{host}"
@@ -380,20 +382,17 @@ async def stream_proxy(path: str, request: Request, base: str = Query(...)):
             for line in body.splitlines():
                 stripped = line.strip()
                 if stripped and not stripped.startswith("#"):
+                    # 解析为完整的原始绝对 URL
                     if stripped.startswith("http"):
-                        from urllib.parse import urlparse, quote
-                        parsed = urlparse(stripped)
-                        proxy_qs = f"base={quote(parsed.scheme + '://' + parsed.netloc, safe='')}"
-                        if parsed.query:
-                            proxy_qs += f"&{parsed.query}"
-                        lines.append(f"{self_base}/api/iptv/stream{parsed.path}?{proxy_qs}")
+                        abs_url = stripped
                     else:
-                        from urllib.parse import quote
-                        path_part = stripped.split("?")[0]
-                        query_part = stripped.split("?", 1)[1] if "?" in stripped else ""
-                        proxy_qs = f"base={quote(base, safe='')}"
-                        if query_part:
-                            proxy_qs += f"&{query_part}"
+                        abs_url = urljoin(target_dir, stripped)
+                    # 转为代理 URL
+                    parsed = urlparse(abs_url)
+                    proxy_qs = f"base={quote(parsed.scheme + '://' + parsed.netloc, safe='')}"
+                    if parsed.query:
+                        proxy_qs += f"&{parsed.query}"
+                    lines.append(f"{self_base}/api/iptv/stream{parsed.path}?{proxy_qs}")
                         lines.append(f"{self_base}/api/iptv/stream/{path_part.lstrip('/')}?{proxy_qs}")
                 else:
                     lines.append(line)
