@@ -75,21 +75,11 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
     if (!video) return;
 
     if (Hls.isSupported()) {
-      const hls = new Hls({
-        xhrSetup: (xhr, requestUrl) => {
-          console.log('[HLS XHR]', requestUrl);
-          xhr.open('GET', `/api/iptv/proxy?url=${encodeURIComponent(requestUrl)}`, true);
-        },
-        fetchSetup: (context, initParams) => {
-          console.log('[HLS Fetch]', context.url);
-          const proxyUrl = `/api/iptv/proxy?url=${encodeURIComponent(context.url)}`;
-          return new Request(proxyUrl, initParams);
-        },
-      });
-      hls.loadSource(url);
+      const hls = new Hls();
+      // 通过代理加载，代理会把 m3u8 中所有 URL 改写为代理地址
+      hls.loadSource(`/api/iptv/proxy?url=${encodeURIComponent(url)}`);
       hls.attachMedia(video);
 
-      // 监听所有关键事件
       hls.on(Hls.Events.MANIFEST_LOADED, (_event, data) => {
         console.log('[HLS] MANIFEST_LOADED, levels:', data.levels?.length);
       });

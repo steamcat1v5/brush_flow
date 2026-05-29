@@ -371,11 +371,13 @@ async def proxy_stream(url: str = Query(...)):
             for line in body.splitlines():
                 stripped = line.strip()
                 if stripped and not stripped.startswith("#"):
-                    # 非注释行 = URL，改写为绝对路径
+                    # 非注释行 = URL，改写为代理 URL
                     if stripped.startswith("http"):
-                        lines.append(stripped)
+                        abs_url = stripped
                     else:
-                        lines.append(urljoin(base_url, stripped))
+                        abs_url = urljoin(base_url, stripped)
+                    from urllib.parse import quote
+                    lines.append(f"/api/iptv/proxy?url={quote(abs_url, safe='')}")
                 else:
                     lines.append(line)
             rewritten = "\n".join(lines)
