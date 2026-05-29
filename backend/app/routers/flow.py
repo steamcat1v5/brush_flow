@@ -38,10 +38,12 @@ async def get_flow_summary(
     db: AsyncSession = Depends(get_db),
 ):
     if period == "week":
-        # 按周：从 flow_logs 按自然周聚合
+        # 按周：从 flow_logs 按自然周聚合，区分下载和 IPTV
         stmt = select(
             func.strftime("%Y-W%W", FlowLog.logged_at).label("period_key"),
             func.sum(FlowLog.bytes_down).label("total_bytes"),
+            func.sum(FlowLog.bytes_down).filter(FlowLog.task_id < 100000).label("download_bytes"),
+            func.sum(FlowLog.bytes_down).filter(FlowLog.task_id >= 100000).label("iptv_bytes"),
         ).group_by(
             func.strftime("%Y-W%W", FlowLog.logged_at)
         ).order_by(
@@ -51,15 +53,18 @@ async def get_flow_summary(
         rows = result.all()
         return [
             FlowSummaryOut(period_type="week", period_key=r.period_key, total_bytes=r.total_bytes or 0,
+                           download_bytes=r.download_bytes or 0, iptv_bytes=r.iptv_bytes or 0,
                            task_count=0, avg_speed=0, peak_speed=0)
             for r in rows
         ]
 
     if period == "month":
-        # 按月：从 flow_logs 按自然月聚合
+        # 按月：从 flow_logs 按自然月聚合，区分下载和 IPTV
         stmt = select(
             func.strftime("%Y-%m", FlowLog.logged_at).label("period_key"),
             func.sum(FlowLog.bytes_down).label("total_bytes"),
+            func.sum(FlowLog.bytes_down).filter(FlowLog.task_id < 100000).label("download_bytes"),
+            func.sum(FlowLog.bytes_down).filter(FlowLog.task_id >= 100000).label("iptv_bytes"),
         ).group_by(
             func.strftime("%Y-%m", FlowLog.logged_at)
         ).order_by(
@@ -69,19 +74,34 @@ async def get_flow_summary(
         rows = result.all()
         return [
             FlowSummaryOut(period_type="month", period_key=r.period_key, total_bytes=r.total_bytes or 0,
+                           download_bytes=r.download_bytes or 0, iptv_bytes=r.iptv_bytes or 0,
                            task_count=0, avg_speed=0, peak_speed=0)
             for r in rows
         ]
 
-    # 按日：优先查 flow_summaries 表（已预聚合的历史数据）
-    stmt = (
-        select(FlowSummary)
-        .where(FlowSummary.period_type == period)
-        .order_by(FlowSummary.period_key.desc())
-        .limit(limit)
-    )
+    # 按日：从 flow_logs 按日聚合，区分下载和 IPTV
+    from datetime import timedelta
+    days_ago = datetime.now() - timedelta(days=limit)
+    stmt = select(
+        func.strftime("%Y-%m-%d", FlowLog.logged_at).label("period_key"),
+        func.sum(FlowLog.bytes_down).label("total_bytes"),
+        func.sum(FlowLog.bytes_down).filter(FlowLog.task_id < 100000).label("download_bytes"),
+        func.sum(FlowLog.bytes_down).filter(FlowLog.task_id >= 100000).label("iptv_bytes"),
+    ).where(
+        FlowLog.logged_at >= days_ago
+    ).group_by(
+        func.strftime("%Y-%m-%d", FlowLog.logged_at)
+    ).order_by(
+        func.strftime("%Y-%m-%d", FlowLog.logged_at).desc()
+    ).limit(limit)
     result = await db.execute(stmt)
-    summaries = list(result.scalars().all())
+    rows = result.all()
+    summaries = [
+        FlowSummaryOut(period_type="day", period_key=r.period_key, total_bytes=r.total_bytes or 0,
+                       download_bytes=r.download_bytes or 0, iptv_bytes=r.iptv_bytes or 0,
+                       task_count=0, avg_speed=0, peak_speed=0)
+        for r in rows
+    ]
 
     # 如果列表里没有今天的数据，则实时计算并插入
     if len(summaries) < limit:
