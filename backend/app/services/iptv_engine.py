@@ -89,7 +89,7 @@ class IptvTaskRunner:
         async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
             self._session = session
             seen_segments: set[str] = set()
-            switch_deadline = (time.monotonic() + self.auto_switch_interval
+            self._switch_deadline = (time.monotonic() + self.auto_switch_interval
                                if self.auto_switch_enabled else float("inf"))
             retry_count = 0
 
@@ -134,7 +134,7 @@ class IptvTaskRunner:
                                 await asyncio.sleep(3)
                                 # 检查是否需要换台
                                 if (self.auto_switch_enabled and
-                                        time.monotonic() >= switch_deadline):
+                                        time.monotonic() >= self._switch_deadline):
                                     await self._switch_channel(session)
                                     break  # 跳出内层循环，重新解析流地址
                                 continue
