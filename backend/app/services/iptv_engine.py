@@ -105,11 +105,23 @@ class IptvTaskRunner:
                         variant_url = await hls_downloader.resolve_stream_url(session, self.hls_url)
                         logger.debug(f"IPTV 任务 {self.task_id} 变体地址: {variant_url[:80]}...")
                         await log_task(self.task_id, "iptv", "info", f"流地址解析成功，开始获取分片")
+                        last_resolve_time = time.monotonic()
 
                         while not self._stop_event.is_set():
                             await self._pause_event.wait()
                             if self._stop_event.is_set():
                                 break
+
+                            # 每 5 分钟重新解析流地址（刷新认证 token）
+                            if time.monotonic() - last_resolve_time >= 300:
+                                logger.debug(f"IPTV 任务 {self.task_id} 定期刷新流地址")
+                                try:
+                                    variant_url = await hls_downloader.resolve_stream_url(session, self.hls_url)
+                                    last_resolve_time = time.monotonic()
+                                    seen_segments.clear()
+                                    await log_task(self.task_id, "iptv", "info", "流地址已刷新")
+                                except Exception as e:
+                                    logger.warning(f"IPTV 任务 {self.task_id} 刷新流地址失败: {e}")
 
                             # 获取分片列表
                             segments = await hls_downloader.fetch_segment_list(session, variant_url)
