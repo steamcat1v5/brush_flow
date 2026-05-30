@@ -20,6 +20,15 @@ const statusColors: Record<string, string> = {
   stopped: 'default',
 };
 
+const statusLabels: Record<string, string> = {
+  pending: '待启动',
+  running: '运行中',
+  paused: '已暂停',
+  completed: '已完成',
+  failed: '失败',
+  stopped: '已停止',
+};
+
 export default function Tasks() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [links, setLinks] = useState<any[]>([]);
@@ -114,7 +123,7 @@ export default function Tasks() {
     { title: '名称', dataIndex: 'name' },
     {
       title: '状态', dataIndex: 'status', width: 100,
-      render: (s: string) => <Tag color={statusColors[s] || 'default'}>{s}</Tag>,
+      render: (s: string) => <Tag color={statusColors[s] || 'default'}>{statusLabels[s] || s}</Tag>,
     },
     {
       title: '已下载', dataIndex: 'total_downloaded', width: 120,
