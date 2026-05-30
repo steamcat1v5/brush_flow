@@ -68,6 +68,10 @@
 - [使用指南](docs/USAGE_GUIDE.md) — 安装部署、功能使用说明
 - [hls.js 参考手册](docs/hlsjs-reference.md) — HLS 播放器配置参数与用法
 
+## 开发工具
+
+- **IPTV 预览测试页**：`http://localhost:8765/iptv-test` — 独立的 HLS 播放测试页面，支持直连和通过后端代理两种模式，用于调试 IPTV 流媒体播放问题。源码位于 `backend/app/static/iptv_test.html`。
+
 ## 截图
 
 *(待添加)*
