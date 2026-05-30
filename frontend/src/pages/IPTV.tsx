@@ -119,7 +119,7 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
         hlsRef.current = null;
       }
     };
-  }, [url, onClose]);
+  }, [url]);
 
   return (
     <video
