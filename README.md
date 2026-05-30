@@ -66,6 +66,7 @@
 
 - [技术设计文档](docs/TECHNICAL_DESIGN.md) — 核心技术策略、数据库表结构、部署方案
 - [使用指南](docs/USAGE_GUIDE.md) — 安装部署、功能使用说明
+- [IPTV 流程图与数据流](docs/iptv-flowchart.md) — 从 m3u 源到流量消耗的完整流程图及 HTTP 数据流详解
 - [hls.js 参考手册](docs/hlsjs-reference.md) — HLS 播放器配置参数与用法
 
 ## 开发工具
