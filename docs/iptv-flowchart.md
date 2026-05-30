@@ -47,7 +47,7 @@ flowchart TD
 
 **请求：**
 ```
-GET https://example.com/tv/cu.m3u HTTP/2
+GET https://example.com/iptv/playlist.m3u HTTP/2
 ```
 
 **响应：**
