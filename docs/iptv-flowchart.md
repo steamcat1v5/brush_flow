@@ -4,34 +4,35 @@
 
 ```mermaid
 flowchart TD
-    A[用户添加 m3u 源 URL] --> B[后端请求 m3u 内容]
-    B --> C[解析 EXTINF 提取频道名/分组/HLS地址]
-    C --> D[存入 iptv_channels 表]
-    D --> E[用户选择频道创建 IPTV 任务]
-    E --> F[启动任务]
-    F --> G[请求 Master m3u8]
-    G --> H{响应类型?}
-    H -->|302 重定向| I[跟随 Location 重新请求]
+    A["用户添加 m3u 源 URL"] --> B["后端请求 m3u 内容"]
+    B --> C["解析 EXTINF 提取频道名/分组/HLS地址"]
+    C --> D["存入 iptv_channels 表"]
+    D --> E["用户选择频道创建 IPTV 任务"]
+    E --> F["启动任务"]
+    F --> G["请求 Master m3u8"]
+    G --> H{"响应类型?"}
+    H -->|"302 重定向"| I["跟随 Location 重新请求"]
     I --> H
-    H -->|200 文本| J[解析 EXT-X-STREAM-INF 选择最高码率变体]
-    J --> K[请求 Variant m3u8]
-    K --> L[解析 EXTINF 时长和 .ts 分片 URL]
-    L --> M[逐个下载 .ts 分片]
-    M --> N[流式读取 → 计数字节数 → 丢弃]
-    N --> O[写入 flow_tracker 流量统计]
-    O --> P{达到目标下载量?}
-    P -->|是| Q[任务自动完成]
-    P -->|否| R[等待分片时长]
-    R --> S[重新获取 Variant m3u8]
-    S --> T{有新分片?}
-    T -->|是| M
-    T -->|否| U[等待 3 秒]
-    U --> V{距上次解析超过 5 分钟?}
-    V -->|是| W[重新请求 Master m3u8 刷新 token]
-    W --> K
-    V -->|否| S
-    X{自动换台?} -->|到期或连续失败5次| Y[随机/顺序选择新频道]
-    Y --> G
+    H -->|"200 文本"| J["解析 EXT-X-STREAM-INF 选择最高码率变体"]
+    J --> K["请求 Variant m3u8"]
+    K --> L["解析 EXTINF 时长和 .ts 分片 URL"]
+    L --> M["逐个下载 .ts 分片"]
+    M --> N["流式读取 → 计数字节数 → 丢弃"]
+    N --> O["写入 flow_tracker 流量统计"]
+    O --> P{"达到目标下载量?"}
+    P -->|"是"| Q["任务自动完成"]
+    P -->|"否"| R["等待分片时长"]
+    R --> S{"自动换台条件?"}
+    S -->|"到期或连续失败5次"| T["随机/顺序选择新频道"]
+    T --> G
+    S -->|"否"| U["重新获取 Variant m3u8"]
+    U --> V{"有新分片?"}
+    V -->|"是"| M
+    V -->|"否"| W["等待 3 秒"]
+    W --> X{"距上次解析超过 5 分钟?"}
+    X -->|"是"| Y["重新请求 Master m3u8 刷新 token"]
+    Y --> K
+    X -->|"否"| U
 
     style A fill:#e1f5fe
     style Q fill:#c8e6c9
