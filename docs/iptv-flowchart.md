@@ -5,7 +5,7 @@
 ```mermaid
 flowchart TD
     A[用户添加 m3u 源 URL] --> B[后端请求 m3u 内容]
-    B --> C[解析 #EXTINF 提取频道名/分组/HLS地址]
+    B --> C[解析 EXTINF 提取频道名/分组/HLS地址]
     C --> D[存入 iptv_channels 表]
     D --> E[用户选择频道创建 IPTV 任务]
     E --> F[启动任务]
@@ -13,9 +13,9 @@ flowchart TD
     G --> H{响应类型?}
     H -->|302 重定向| I[跟随 Location 重新请求]
     I --> H
-    H -->|200 文本| J[解析 #EXT-X-STREAM-INF 选择最高码率变体]
+    H -->|200 文本| J[解析 EXT-X-STREAM-INF 选择最高码率变体]
     J --> K[请求 Variant m3u8]
-    K --> L[解析 #EXTINF 时长和 .ts 分片 URL]
+    K --> L[解析 EXTINF 时长和 .ts 分片 URL]
     L --> M[逐个下载 .ts 分片]
     M --> N[流式读取 → 计数字节数 → 丢弃]
     N --> O[写入 flow_tracker 流量统计]
