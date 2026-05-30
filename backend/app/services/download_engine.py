@@ -74,6 +74,9 @@ class DownloadTask:
             # 检查是否达到目标
             if self.target_bytes > 0 and self.total_downloaded >= self.target_bytes:
                 self.status = "completed"
+                from app.utils.format import format_bytes
+                await log_task(self.task_id, "download", "info",
+                               f"已达目标下载量 ({format_bytes(self.total_downloaded)})，任务自动完成")
                 break
 
             try:
