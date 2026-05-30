@@ -191,6 +191,12 @@ class IptvTaskRunner:
                         logger.warning(f"IPTV 任务 {self.task_id} 出错: {e}，{wait}s 后重试")
                         await log_task(self.task_id, "iptv", "warn", f"出错: {e}，{wait}s 后重试")
                         await asyncio.sleep(wait)
+                        # 连续失败 5 次且启用了自动换台，尝试换台
+                        if retry_count >= 5 and self.auto_switch_enabled:
+                            logger.info(f"IPTV 任务 {self.task_id} 连续失败 {retry_count} 次，尝试换台")
+                            await log_task(self.task_id, "iptv", "warn", f"连续失败 {retry_count} 次，自动换台")
+                            await self._switch_channel(session)
+                            retry_count = 0
 
             except asyncio.CancelledError:
                 pass
