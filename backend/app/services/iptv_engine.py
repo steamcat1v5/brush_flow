@@ -175,7 +175,7 @@ class IptvTaskRunner:
 
                             # 检查是否需要换台
                             if (self.auto_switch_enabled and
-                                    time.monotonic() >= switch_deadline):
+                                    time.monotonic() >= self._switch_deadline):
                                 await self._switch_channel(session)
                                 break  # 跳出内层循环，重新解析流地址
 
