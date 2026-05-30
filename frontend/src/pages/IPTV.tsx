@@ -77,9 +77,12 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
     const video = videoRef.current;
     if (!video) return;
 
+    console.log('[VideoPreview] useEffect mount, url:', url);
+
     // 将原始 IPTV URL 转为代理 URL
     const parsed = new URL(url);
     const proxyUrl = `/api/iptv/stream${parsed.pathname}?base=${encodeURIComponent(parsed.origin)}${parsed.search ? '&' + parsed.search.slice(1) : ''}`;
+    console.log('[VideoPreview] proxyUrl:', proxyUrl.substring(0, 120));
 
     if (Hls.isSupported()) {
       const hls = new Hls({
@@ -110,6 +113,7 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
     }
 
     return () => {
+      console.log('[VideoPreview] useEffect cleanup (destroy hls)');
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
