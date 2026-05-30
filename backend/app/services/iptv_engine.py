@@ -123,9 +123,9 @@ class IptvTaskRunner:
                                 except Exception as e:
                                     logger.warning(f"IPTV 任务 {self.task_id} 刷新流地址失败: {e}")
 
-                            # 获取分片列表
+                            # 获取分片列表（返回 (url, duration) 元组）
                             segments = await hls_downloader.fetch_segment_list(session, variant_url)
-                            new_segments = [s for s in segments if s not in seen_segments]
+                            new_segments = [(url, dur) for url, dur in segments if url not in seen_segments]
                             logger.debug(f"IPTV 任务 {self.task_id} 分片列表: {len(segments)} 个, 新增: {len(new_segments)} 个")
 
                             if not new_segments:
@@ -136,11 +136,11 @@ class IptvTaskRunner:
                                 if (self.auto_switch_enabled and
                                         time.monotonic() >= self._switch_deadline):
                                     await self._switch_channel(session)
-                                    break  # 跳出内层循环，重新解析流地址
+                                    break
                                 continue
 
-                            # 下载新分片
-                            for seg_url in new_segments:
+                            # 以实时速率逐个下载分片
+                            for seg_url, seg_duration in new_segments:
                                 if self._stop_event.is_set():
                                     break
                                 await self._pause_event.wait()
@@ -175,6 +175,11 @@ class IptvTaskRunner:
                                     await log_task(self.task_id, "iptv", "info",
                                                    f"已达目标下载量 ({format_bytes(self.total_downloaded)})，任务自动完成")
                                     return
+
+                            # 模拟实时播放：等待最后一个分片的时长再拉取新分片
+                            last_duration = new_segments[-1][1] if new_segments else 5.0
+                            logger.debug(f"IPTV 任务 {self.task_id} 等待 {last_duration:.1f}s 模拟播放")
+                            await asyncio.sleep(last_duration)
 
                             # 检查是否需要换台
                             if (self.auto_switch_enabled and

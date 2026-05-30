@@ -64,8 +64,8 @@ class HlsDownloader:
         return url
 
     async def fetch_segment_list(self, session: aiohttp.ClientSession,
-                                  variant_url: str) -> list[str]:
-        """获取变体 m3u8，返回 .ts 分片 URL 列表。"""
+                                  variant_url: str) -> list[tuple[str, float]]:
+        """获取变体 m3u8，返回 (分片URL, 时长秒数) 元组列表。"""
         try:
             async with session.get(variant_url) as resp:
                 if resp.status != 200:
@@ -76,19 +76,26 @@ class HlsDownloader:
             logger.error(f"获取分片列表失败: {e}")
             return []
 
-        segments: list[str] = []
+        segments: list[tuple[str, float]] = []
         lines = content.strip().splitlines()
+        pending_duration = 5.0  # 默认分片时长
         for i, line in enumerate(lines):
             line = line.strip()
-            if line and not line.startswith("#"):
+            if line.startswith("#EXTINF:"):
+                # 解析分片时长: #EXTINF:10.206,
+                try:
+                    duration_str = line.split(":")[1].split(",")[0]
+                    pending_duration = max(float(duration_str), 1.0)
+                except (ValueError, IndexError):
+                    pending_duration = 5.0
+            elif line and not line.startswith("#"):
                 # 这是分片 URL（非注释行）
                 if line.startswith("http"):
-                    segments.append(line)
+                    segments.append((line, pending_duration))
                 else:
-                    # 相对路径，基于变体 URL 解析
-                    segments.append(urljoin(variant_url, line))
+                    segments.append((urljoin(variant_url, line), pending_duration))
+                pending_duration = 5.0
             elif line.startswith("#EXT-X-ENDLIST"):
-                # 点播流结束标志
                 break
 
         return segments
