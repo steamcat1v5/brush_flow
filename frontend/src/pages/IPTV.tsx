@@ -467,11 +467,14 @@ export default function IPTV() {
           setPreviewUrl('');
         }}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         width={720}
       >
         {previewOpen && previewUrl && (
-          <VideoPreview url={previewUrl} onClose={() => setPreviewOpen(false)} />
+          <VideoPreview url={previewUrl} onClose={() => {
+            setPreviewOpen(false);
+            setPreviewUrl('');
+          }} />
         )}
       </Modal>
 
