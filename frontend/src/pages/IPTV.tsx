@@ -70,6 +70,8 @@ interface IptvTask {
 function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     const video = videoRef.current;
@@ -95,16 +97,16 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
           message.error(`视频流加载失败: ${data.details || '未知错误'}`);
-          onClose();
+          onCloseRef.current();
         }
       });
       hlsRef.current = hls;
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = `/api/iptv/proxy?url=${encodeURIComponent(url)}`;
+      video.src = proxyUrl;
       video.addEventListener('loadedmetadata', () => video.play().catch(() => {}));
     } else {
       message.error('当前浏览器不支持 HLS 播放');
-      onClose();
+      onCloseRef.current();
     }
 
     return () => {
