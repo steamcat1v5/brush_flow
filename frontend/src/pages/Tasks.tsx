@@ -82,7 +82,8 @@ export default function Tasks() {
   };
 
   const handleSubmit = async () => {
-    const values = await form.validateFields();
+    await form.validateFields();
+    const values = form.getFieldsValue(true);
     const payload = {
       ...values,
       speed_limit: (values.speed_limit || 0) * 1024,

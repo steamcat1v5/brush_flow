@@ -293,7 +293,8 @@ export default function IPTV() {
   };
 
   const handleSubmitTask = async () => {
-    const values = await taskForm.validateFields();
+    await taskForm.validateFields();
+    const values = taskForm.getFieldsValue(true);
     const payload = {
       ...values,
       speed_limit: (values.speed_limit || 0) * 1024,
