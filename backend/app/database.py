@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import text
 
 from app.config import settings
 
@@ -24,18 +25,12 @@ async def init_db():
         from app.models import iptv_source, iptv_channel, iptv_task, task_log  # noqa: F401
         await conn.run_sync(Base.metadata.create_all)
 
-    # SQLite ALTER TABLE: 为已有表新增列（如果不存在）
+    # 通过异步引擎安全地为已有表添加缺失的列
     await _migrate_add_columns()
 
 
 async def _migrate_add_columns():
     """安全地为已有表添加缺失的列"""
-    import sqlite3
-
-    db_path = settings.db_path
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
     migrations = [
         ("tasks", "auto_start_cron", "TEXT"),
         ("tasks", "auto_stop_cron", "TEXT"),
@@ -43,11 +38,11 @@ async def _migrate_add_columns():
         ("iptv_tasks", "auto_stop_cron", "TEXT"),
     ]
 
-    for table, column, col_type in migrations:
-        try:
-            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
-        except sqlite3.OperationalError:
-            pass  # 列已存在，忽略
-
-    conn.commit()
-    conn.close()
+    async with engine.begin() as conn:
+        for table, column, col_type in migrations:
+            try:
+                await conn.execute(
+                    text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+                )
+            except Exception:
+                pass  # 列已存在，忽略
