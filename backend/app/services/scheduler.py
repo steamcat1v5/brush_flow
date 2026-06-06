@@ -9,6 +9,7 @@ from app.models.settings_model import Setting
 from app.models.task import Task
 from app.models.link import Link
 from app.services.download_engine import download_engine
+from app.services.task_logger import log_task
 from sqlalchemy import select, func
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,7 @@ async def _start_single_task(task_type: str, task_id: int):
 
             await session.commit()
             logger.info(f"定时启动成功: {task_type}#{task_id}")
+            await log_task(task_id, task_type, "info", "[定时] 任务自动启动")
     except Exception as e:
         logger.error(f"定时启动任务失败: {task_type}#{task_id}: {e}")
 
@@ -121,6 +123,7 @@ async def _stop_single_task(task_type: str, task_id: int):
 
             await session.commit()
             logger.info(f"定时停止成功: {task_type}#{task_id}")
+            await log_task(task_id, task_type, "info", "[定时] 任务自动停止")
     except Exception as e:
         logger.error(f"定时停止任务失败: {task_type}#{task_id}: {e}")
 
