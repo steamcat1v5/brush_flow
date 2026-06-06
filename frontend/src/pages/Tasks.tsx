@@ -40,6 +40,8 @@ export default function Tasks() {
     { open: false, taskId: 0, taskName: '' }
   );
   const [form] = Form.useForm();
+  const autoStartCron = Form.useWatch('auto_start_cron', form);
+  const autoStopCron = Form.useWatch('auto_stop_cron', form);
 
   const load = () => {
     getTasks().then((r) => setTasks(r.data));
@@ -232,14 +234,16 @@ export default function Tasks() {
           >
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
-          {editingTask?.status === 'running' && (
-            <div style={{ color: '#faad14', fontSize: '12px' }}>
-              <InfoCircleOutlined /> 任务正在运行，修改后的设置将在下次启动时生效。
-            </div>
-          )}
           <Collapse size="small" items={[{
             key: 'schedule',
-            label: '定时设置',
+            label: (
+              <Space size="small">
+                <span>定时设置</span>
+                {autoStartCron ? <Tag color="green">启动</Tag> : null}
+                {autoStopCron ? <Tag color="orange">停止</Tag> : null}
+                {!autoStartCron && !autoStopCron ? <Tag>未启用</Tag> : null}
+              </Space>
+            ),
             children: (
               <>
                 <Form.Item name="auto_start_cron" label="定时启动" style={{ marginBottom: 8 }}>
@@ -251,6 +255,11 @@ export default function Tasks() {
               </>
             ),
           }]} />
+          {editingTask?.status === 'running' && (
+            <div style={{ color: '#faad14', fontSize: '12px', marginTop: 8 }}>
+              <InfoCircleOutlined /> 任务正在运行，修改后的设置将在下次启动时生效。
+            </div>
+          )}
         </Form>
       </Modal>
 

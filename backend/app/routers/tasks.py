@@ -69,6 +69,8 @@ async def create_task(data: TaskCreate, db: AsyncSession = Depends(get_db)):
         concurrency=data.concurrency,
         target_bytes=data.target_bytes,
         speed_limit=data.speed_limit,
+        auto_start_cron=data.auto_start_cron,
+        auto_stop_cron=data.auto_stop_cron,
     )
     db.add(task)
     await db.commit()
@@ -77,6 +79,9 @@ async def create_task(data: TaskCreate, db: AsyncSession = Depends(get_db)):
     if task.auto_start_cron or task.auto_stop_cron:
         schedule_task_jobs("download", task.id, task.auto_start_cron, task.auto_stop_cron)
     return _task_to_out(task)
+
+
+@router.put("/{task_id}", response_model=TaskOut)
 async def update_task(task_id: int, data: TaskUpdate, db: AsyncSession = Depends(get_db)):
     task = await db.get(Task, task_id)
     if not task:

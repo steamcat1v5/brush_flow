@@ -171,6 +171,9 @@ export default function IPTV() {
 
   const [sourceForm] = Form.useForm();
   const [taskForm] = Form.useForm();
+  const autoSwitchEnabled = Form.useWatch('auto_switch_enabled', taskForm);
+  const autoStartCron = Form.useWatch('auto_start_cron', taskForm);
+  const autoStopCron = Form.useWatch('auto_stop_cron', taskForm);
 
   const load = useCallback(() => {
     getIptvSources().then((r) => setSources(r.data));
@@ -564,7 +567,12 @@ export default function IPTV() {
 
           <Collapse size="small" items={[{
             key: 'auto-switch',
-            label: '自动换台',
+            label: (
+              <Space size="small">
+                <span>自动换台</span>
+                {autoSwitchEnabled ? <Tag color="blue">已启用</Tag> : <Tag>未启用</Tag>}
+              </Space>
+            ),
             children: (
               <>
                 <Form.Item name="auto_switch_enabled" label="启用自动换台" valuePropName="checked" initialValue={false}>
@@ -583,15 +591,16 @@ export default function IPTV() {
             ),
           }]} />
 
-          {editingTask?.status === 'running' && (
-            <div style={{ color: '#faad14', fontSize: '12px' }}>
-              任务正在运行，修改后的设置将在下次启动时生效。
-            </div>
-          )}
-
-          <Collapse size="small" items={[{
+          <Collapse size="small" style={{ marginTop: 8 }} items={[{
             key: 'schedule',
-            label: '定时设置',
+            label: (
+              <Space size="small">
+                <span>定时设置</span>
+                {autoStartCron ? <Tag color="green">启动</Tag> : null}
+                {autoStopCron ? <Tag color="orange">停止</Tag> : null}
+                {!autoStartCron && !autoStopCron ? <Tag>未启用</Tag> : null}
+              </Space>
+            ),
             children: (
               <>
                 <Form.Item name="auto_start_cron" label="定时启动" style={{ marginBottom: 8 }}>
@@ -603,6 +612,12 @@ export default function IPTV() {
               </>
             ),
           }]} />
+
+          {editingTask?.status === 'running' && (
+            <div style={{ color: '#faad14', fontSize: '12px', marginTop: 8 }}>
+              任务正在运行，修改后的设置将在下次启动时生效。
+            </div>
+          )}
         </Form>
       </Modal>
 
