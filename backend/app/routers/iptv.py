@@ -192,6 +192,9 @@ async def create_iptv_task(data: IptvTaskCreate, db: AsyncSession = Depends(get_
     if task.auto_start_cron or task.auto_stop_cron:
         schedule_task_jobs("iptv", task.id, task.auto_start_cron, task.auto_stop_cron)
     return _iptv_task_to_out(task, channel.name)
+
+
+@router.get("/tasks", response_model=list[IptvTaskOut])
 async def list_iptv_tasks(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(IptvTask).order_by(IptvTask.id.desc()))
     tasks = result.scalars().all()
