@@ -3,6 +3,7 @@ import { Button, Card, Modal, Form, Input, InputNumber, Select, Space, Table, Ta
 import { PlusOutlined, PlayCircleOutlined, StopOutlined, DeleteOutlined, StopFilled, EditOutlined, InfoCircleOutlined, FileTextOutlined } from '@ant-design/icons';
 import { getTasks, createTask, updateTask, startTask, pauseTask, resumeTask, stopTask, deleteTask, getLinks, stopAllTasks, getSettings } from '../api';
 import TaskLogDrawer from '../components/TaskLogDrawer';
+import CronScheduleInput from '../components/CronScheduleInput';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return bytes + ' B';
@@ -72,6 +73,8 @@ export default function Tasks() {
       concurrency: task.concurrency,
       target_bytes: task.target_bytes / (1024 * 1024),
       speed_limit: task.speed_limit / 1024,
+      auto_start_cron: task.auto_start_cron || undefined,
+      auto_stop_cron: task.auto_stop_cron || undefined,
     });
     setModalOpen(true);
   };
@@ -82,6 +85,8 @@ export default function Tasks() {
       ...values,
       speed_limit: (values.speed_limit || 0) * 1024,
       target_bytes: (values.target_bytes || 0) * 1024 * 1024,
+      auto_start_cron: values.auto_start_cron || null,
+      auto_stop_cron: values.auto_stop_cron || null,
     };
 
     if (editingTask) {
@@ -134,6 +139,14 @@ export default function Tasks() {
       render: (v: number) => formatBytes(v) + '/s',
     },
     { title: '并发', dataIndex: 'concurrency', width: 60 },
+    {
+      title: '定时启动', dataIndex: 'auto_start_cron', width: 100,
+      render: (v: string | null) => v || '-',
+    },
+    {
+      title: '定时停止', dataIndex: 'auto_stop_cron', width: 100,
+      render: (v: string | null) => v || '-',
+    },
     {
       title: '操作', width: 240,
       render: (_: unknown, record: any) => (
@@ -224,6 +237,12 @@ export default function Tasks() {
               <InfoCircleOutlined /> 任务正在运行，修改后的设置将在下次启动时生效。
             </div>
           )}
+          <Form.Item name="auto_start_cron" label="定时启动">
+            <CronScheduleInput label="" />
+          </Form.Item>
+          <Form.Item name="auto_stop_cron" label="定时停止">
+            <CronScheduleInput label="" />
+          </Form.Item>
         </Form>
       </Modal>
 

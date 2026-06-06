@@ -19,6 +19,8 @@ class Task(Base):
     target_bytes: Mapped[int] = mapped_column(Integer, default=0)  # 0=无限循环
     speed_limit: Mapped[int] = mapped_column(Integer, default=0)  # bytes/s per conn, 0=不限
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    auto_start_cron: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, default=None)
+    auto_stop_cron: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, default=None)
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     stopped_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

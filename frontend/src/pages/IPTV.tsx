@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons';
 import Hls from 'hls.js';
 import TaskLogDrawer from '../components/TaskLogDrawer';
+import CronScheduleInput from '../components/CronScheduleInput';
 import {
   getIptvSources, createIptvSource, deleteIptvSource, refreshIptvSource,
   getIptvChannels, getIptvTasks, createIptvTask, updateIptvTask,
@@ -72,6 +73,8 @@ interface IptvTask {
   auto_switch_enabled: boolean;
   auto_switch_interval: number;
   switch_mode: string;
+  auto_start_cron: string | null;
+  auto_stop_cron: string | null;
   created_at: string;
 }
 
@@ -271,6 +274,8 @@ export default function IPTV() {
       auto_switch_enabled: task.auto_switch_enabled,
       auto_switch_interval: task.auto_switch_interval / 60,
       switch_mode: task.switch_mode,
+      auto_start_cron: task.auto_start_cron || undefined,
+      auto_stop_cron: task.auto_stop_cron || undefined,
     });
     setTaskModalOpen(true);
   };
@@ -291,6 +296,8 @@ export default function IPTV() {
       speed_limit: (values.speed_limit || 0) * 1024,
       target_bytes: (values.target_bytes || 0) * 1024 * 1024,
       auto_switch_interval: (values.auto_switch_interval || 30) * 60,
+      auto_start_cron: values.auto_start_cron || null,
+      auto_stop_cron: values.auto_stop_cron || null,
     };
 
     if (editingTask) {
@@ -343,6 +350,14 @@ export default function IPTV() {
       title: '自动换台', dataIndex: 'auto_switch_enabled', width: 90,
       render: (v: boolean, record: IptvTask) =>
         v ? <Tag color="blue">{Math.round(record.auto_switch_interval / 60)}分</Tag> : <Tag>关</Tag>,
+    },
+    {
+      title: '定时启动', dataIndex: 'auto_start_cron', width: 100,
+      render: (v: string | null) => v || '-',
+    },
+    {
+      title: '定时停止', dataIndex: 'auto_stop_cron', width: 100,
+      render: (v: string | null) => v || '-',
     },
     {
       title: '操作', width: 240,
@@ -567,6 +582,15 @@ export default function IPTV() {
               任务正在运行，修改后的设置将在下次启动时生效。
             </div>
           )}
+
+          <Divider>定时启停</Divider>
+
+          <Form.Item name="auto_start_cron" label="定时启动">
+            <CronScheduleInput label="" />
+          </Form.Item>
+          <Form.Item name="auto_stop_cron" label="定时停止">
+            <CronScheduleInput label="" />
+          </Form.Item>
         </Form>
       </Modal>
 

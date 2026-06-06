@@ -21,6 +21,8 @@ class IptvTask(Base):
     auto_switch_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     auto_switch_interval: Mapped[int] = mapped_column(Integer, default=1800)  # 秒
     switch_mode: Mapped[str] = mapped_column(String(20), default="random")  # random/sequential
+    auto_start_cron: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, default=None)
+    auto_stop_cron: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, default=None)
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     stopped_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))

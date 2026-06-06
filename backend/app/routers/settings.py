@@ -5,16 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.settings_model import Setting
 from app.schemas.settings import SettingsOut, SettingsUpdate
-from app.services.scheduler import reload_scheduler_settings
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 DEFAULT_SETTINGS = {
     "global_concurrency": "10",
     "default_task_concurrency": "5",
-    "auto_start_enabled": "false",
-    "auto_start_cron": "0 0 * * *",
-    "auto_stop_cron": "0 8 * * *",
     "speed_limit_per_conn": "0",
     "daily_traffic_target_gb": "0",
     "global_speed_limit_kb": "0",  # 0 表示不限速
@@ -62,5 +58,4 @@ async def update_settings(data: SettingsUpdate, db: AsyncSession = Depends(get_d
     await db.commit()
     new_settings = await get_settings(db)
     await apply_global_settings(new_settings.settings)
-    await reload_scheduler_settings()
     return new_settings

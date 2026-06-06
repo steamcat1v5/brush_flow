@@ -11,6 +11,7 @@ from app.schemas.task import TaskCreate, TaskOut, TaskUpdate
 from app.services.download_engine import download_engine
 from app.services.flow_tracker import flow_tracker
 from app.services.task_logger import log_task
+from app.services.scheduler import schedule_task_jobs, remove_task_jobs
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -33,6 +34,8 @@ def _task_to_out(task: Task) -> TaskOut:
         target_bytes=task.target_bytes,
         speed_limit=task.speed_limit,
         retry_count=task.retry_count,
+        auto_start_cron=task.auto_start_cron,
+        auto_stop_cron=task.auto_stop_cron,
         started_at=task.started_at,
         stopped_at=task.stopped_at,
         created_at=task.created_at,
@@ -70,10 +73,10 @@ async def create_task(data: TaskCreate, db: AsyncSession = Depends(get_db)):
     db.add(task)
     await db.commit()
     await db.refresh(task)
+    # 注册定时任务
+    if task.auto_start_cron or task.auto_stop_cron:
+        schedule_task_jobs("download", task.id, task.auto_start_cron, task.auto_stop_cron)
     return _task_to_out(task)
-
-
-@router.put("/{task_id}", response_model=TaskOut)
 async def update_task(task_id: int, data: TaskUpdate, db: AsyncSession = Depends(get_db)):
     task = await db.get(Task, task_id)
     if not task:
@@ -85,6 +88,9 @@ async def update_task(task_id: int, data: TaskUpdate, db: AsyncSession = Depends
 
     await db.commit()
     await db.refresh(task)
+
+    # 刷新定时任务
+    schedule_task_jobs("download", task.id, task.auto_start_cron, task.auto_stop_cron)
 
     # 如果任务正在运行，提醒用户重启生效
     return _task_to_out(task)
@@ -200,6 +206,9 @@ async def delete_task(task_id: int, db: AsyncSession = Depends(get_db)):
 
     if task.status == "running":
         await download_engine.stop_download(task_id)
+
+    # 移除定时任务
+    remove_task_jobs("download", task_id)
 
     await db.delete(task)
     await db.commit()

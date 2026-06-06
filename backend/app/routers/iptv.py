@@ -19,6 +19,7 @@ from app.services.m3u_parser import parse_m3u
 from app.services.iptv_engine import iptv_engine, IPTV_TASK_ID_OFFSET
 from app.services.flow_tracker import flow_tracker
 from app.services.task_logger import log_task
+from app.services.scheduler import schedule_task_jobs, remove_task_jobs
 
 router = APIRouter(prefix="/api/iptv", tags=["iptv"])
 
@@ -156,6 +157,8 @@ def _iptv_task_to_out(task: IptvTask, channel_name: str = "") -> IptvTaskOut:
         auto_switch_enabled=task.auto_switch_enabled,
         auto_switch_interval=task.auto_switch_interval,
         switch_mode=task.switch_mode,
+        auto_start_cron=task.auto_start_cron,
+        auto_stop_cron=task.auto_stop_cron,
         started_at=task.started_at,
         stopped_at=task.stopped_at,
         created_at=task.created_at,
@@ -185,10 +188,10 @@ async def create_iptv_task(data: IptvTaskCreate, db: AsyncSession = Depends(get_
     db.add(task)
     await db.commit()
     await db.refresh(task)
+    # 注册定时任务
+    if task.auto_start_cron or task.auto_stop_cron:
+        schedule_task_jobs("iptv", task.id, task.auto_start_cron, task.auto_stop_cron)
     return _iptv_task_to_out(task, channel.name)
-
-
-@router.get("/tasks", response_model=list[IptvTaskOut])
 async def list_iptv_tasks(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(IptvTask).order_by(IptvTask.id.desc()))
     tasks = result.scalars().all()
@@ -212,6 +215,9 @@ async def update_iptv_task(task_id: int, data: IptvTaskUpdate, db: AsyncSession 
     await db.commit()
     await db.refresh(task)
 
+    # 刷新定时任务
+    schedule_task_jobs("iptv", task.id, task.auto_start_cron, task.auto_stop_cron)
+
     ch = await db.get(IptvChannel, task.channel_id)
     return _iptv_task_to_out(task, ch.name if ch else "")
 
@@ -224,6 +230,9 @@ async def delete_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
 
     if task.status == "running":
         await iptv_engine.stop_task(task_id)
+
+    # 移除定时任务
+    remove_task_jobs("iptv", task_id)
 
     await db.delete(task)
     await db.commit()

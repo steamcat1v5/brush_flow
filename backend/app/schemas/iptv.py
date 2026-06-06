@@ -48,6 +48,8 @@ class IptvTaskCreate(BaseModel):
     auto_switch_enabled: bool = False
     auto_switch_interval: int = 1800
     switch_mode: str = "random"
+    auto_start_cron: Optional[str] = None
+    auto_stop_cron: Optional[str] = None
 
 
 class IptvTaskUpdate(BaseModel):
@@ -58,6 +60,8 @@ class IptvTaskUpdate(BaseModel):
     auto_switch_enabled: Optional[bool] = None
     auto_switch_interval: Optional[int] = None
     switch_mode: Optional[str] = None
+    auto_start_cron: Optional[str] = None
+    auto_stop_cron: Optional[str] = None
 
 
 class IptvTaskOut(BaseModel):
@@ -74,6 +78,8 @@ class IptvTaskOut(BaseModel):
     auto_switch_enabled: bool
     auto_switch_interval: int
     switch_mode: str
+    auto_start_cron: Optional[str] = None
+    auto_stop_cron: Optional[str] = None
     started_at: Optional[datetime] = None
     stopped_at: Optional[datetime] = None
     created_at: datetime
