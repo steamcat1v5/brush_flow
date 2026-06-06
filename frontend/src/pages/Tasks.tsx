@@ -40,8 +40,8 @@ export default function Tasks() {
     { open: false, taskId: 0, taskName: '' }
   );
   const [form] = Form.useForm();
-  const autoStartCron = Form.useWatch('auto_start_cron', form);
-  const autoStopCron = Form.useWatch('auto_stop_cron', form);
+  const autoStartCron = Form.useWatch('auto_start_cron', { form, preserve: true });
+  const autoStopCron = Form.useWatch('auto_stop_cron', { form, preserve: true });
 
   const load = () => {
     getTasks().then((r) => setTasks(r.data));

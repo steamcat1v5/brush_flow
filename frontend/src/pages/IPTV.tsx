@@ -171,9 +171,9 @@ export default function IPTV() {
 
   const [sourceForm] = Form.useForm();
   const [taskForm] = Form.useForm();
-  const autoSwitchEnabled = Form.useWatch('auto_switch_enabled', taskForm);
-  const autoStartCron = Form.useWatch('auto_start_cron', taskForm);
-  const autoStopCron = Form.useWatch('auto_stop_cron', taskForm);
+  const autoSwitchEnabled = Form.useWatch('auto_switch_enabled', { form: taskForm, preserve: true });
+  const autoStartCron = Form.useWatch('auto_start_cron', { form: taskForm, preserve: true });
+  const autoStopCron = Form.useWatch('auto_stop_cron', { form: taskForm, preserve: true });
 
   const load = useCallback(() => {
     getIptvSources().then((r) => setSources(r.data));
