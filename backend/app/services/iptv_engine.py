@@ -51,7 +51,6 @@ class IptvTaskRunner:
         self._pause_event.set()
         self._task = asyncio.create_task(self._main_loop())
         logger.info(f"IPTV 任务 {self.task_id} 启动，频道 URL: {self.hls_url}")
-        await log_task(self.task_id, "iptv", "info", "IPTV 任务启动")
 
     async def stop(self):
         self.status = "stopped"

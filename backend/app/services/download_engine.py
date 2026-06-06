@@ -37,7 +37,6 @@ class DownloadTask:
         self._stop_event.clear()
         self._pause_event.set()
         logger.info(f"任务 {self.task_id} 启动，并发数: {self.concurrency}")
-        await log_task(self.task_id, "download", "info", f"任务启动，并发数: {self.concurrency}")
 
         for i in range(self.concurrency):
             worker = asyncio.create_task(self._worker(i))
