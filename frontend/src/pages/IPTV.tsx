@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   Button, Card, Modal, Form, Input, InputNumber, Select, Space, Table, Tag,
-  message, Popconfirm, Switch, Divider, List, Drawer, Collapse, Empty,
+  message, Popconfirm, Switch, List, Drawer, Collapse, Empty,
 } from 'antd';
 import {
   PlusOutlined, PlayCircleOutlined, StopOutlined,
@@ -562,20 +562,26 @@ export default function IPTV() {
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
 
-          <Divider>自动换台</Divider>
-
-          <Form.Item name="auto_switch_enabled" label="启用自动换台" valuePropName="checked" initialValue={false}>
-            <Switch />
-          </Form.Item>
-          <Form.Item name="auto_switch_interval" label="换台间隔 (分钟)" initialValue={30}>
-            <InputNumber min={1} max={1440} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="switch_mode" label="换台模式" initialValue="random">
-            <Select>
-              <Select.Option value="random">随机</Select.Option>
-              <Select.Option value="sequential">顺序</Select.Option>
-            </Select>
-          </Form.Item>
+          <Collapse size="small" items={[{
+            key: 'auto-switch',
+            label: '自动换台',
+            children: (
+              <>
+                <Form.Item name="auto_switch_enabled" label="启用自动换台" valuePropName="checked" initialValue={false}>
+                  <Switch />
+                </Form.Item>
+                <Form.Item name="auto_switch_interval" label="换台间隔 (分钟)" initialValue={30}>
+                  <InputNumber min={1} max={1440} style={{ width: '100%' }} />
+                </Form.Item>
+                <Form.Item name="switch_mode" label="换台模式" initialValue="random" style={{ marginBottom: 0 }}>
+                  <Select>
+                    <Select.Option value="random">随机</Select.Option>
+                    <Select.Option value="sequential">顺序</Select.Option>
+                  </Select>
+                </Form.Item>
+              </>
+            ),
+          }]} />
 
           {editingTask?.status === 'running' && (
             <div style={{ color: '#faad14', fontSize: '12px' }}>
