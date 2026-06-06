@@ -31,6 +31,7 @@ async def _start_single_task(task_type: str, task_id: int):
                     return
                 if task.status not in ("pending", "stopped", "failed"):
                     logger.info(f"任务状态为 {task.status}，跳过启动")
+                    await log_task(task_id, "download", "info", f"[定时] 任务状态为{task.status}，跳过启动")
                     return
                 link = await session.get(Link, task.link_id)
                 if not link:
@@ -57,6 +58,7 @@ async def _start_single_task(task_type: str, task_id: int):
                     return
                 if task.status not in ("pending", "stopped", "failed"):
                     logger.info(f"任务状态为 {task.status}，跳过启动")
+                    await log_task(task_id, "iptv", "info", f"[定时] 任务状态为{task.status}，跳过启动")
                     return
                 ch = await session.get(IptvChannel, task.channel_id)
                 if not ch:
@@ -95,6 +97,7 @@ async def _stop_single_task(task_type: str, task_id: int):
                     return
                 if task.status not in ("running", "paused"):
                     logger.info(f"任务状态为 {task.status}，跳过停止")
+                    await log_task(task_id, "download", "info", f"[定时] 任务状态为{task.status}，跳过停止")
                     return
                 dl_task = download_engine.get_task(task_id)
                 if dl_task:
@@ -113,6 +116,7 @@ async def _stop_single_task(task_type: str, task_id: int):
                     return
                 if task.status not in ("running", "paused"):
                     logger.info(f"任务状态为 {task.status}，跳过停止")
+                    await log_task(task_id, "iptv", "info", f"[定时] 任务状态为{task.status}，跳过停止")
                     return
                 runner = iptv_engine.get_runner(task_id)
                 if runner:
