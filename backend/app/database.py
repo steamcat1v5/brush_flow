@@ -1,12 +1,27 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import text
+from sqlalchemy import text, event
 
 from app.config import settings
 
 DATABASE_URL = f"sqlite+aiosqlite:///{settings.db_path}"
 
-engine = create_async_engine(DATABASE_URL, echo=settings.db_echo)
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=settings.db_echo,
+    connect_args={"timeout": 30},
+)
+
+
+@event.listens_for(engine.sync_engine, "connect")
+def _set_sqlite_pragma(dbapi_conn, _connection_record):
+    """启用 WAL 模式和忙等待超时，减少并发写锁冲突"""
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=5000")
+    cursor.close()
+
+
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
