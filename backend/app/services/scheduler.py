@@ -142,7 +142,8 @@ async def reload_scheduler_settings():
                 except Exception as e:
                     logger.error(f"解析启动 cron 失败: {e}")
 
-            if settings_dict.get("auto_stop_cron"):
+            # 只有当启用自动停止功能时才设置自动停止定时器
+            if settings_dict.get("auto_stop_cron") and settings_dict.get("auto_start_enabled") == "true":
                 cron_stop = settings_dict.get("auto_stop_cron", "0 8 * * *")
                 try:
                     parts = cron_stop.split()
