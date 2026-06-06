@@ -40,7 +40,10 @@ async def lifespan(app: FastAPI):
         # paused 任务重置为 stopped
         await session.execute(update(Task).where(Task.status == "paused").values(status="stopped"))
         await session.execute(update(IptvTask).where(IptvTask.status == "paused").values(status="stopped"))
+        await session.commit()
 
+    # 恢复之前 running 的任务（在新 session 中，避免长时间持锁）
+    async with async_session() as session:
         # 恢复之前 running 的下载任务
         stmt = select(Task).where(Task.status == "running")
         result = await session.execute(stmt)
