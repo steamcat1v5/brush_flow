@@ -583,14 +583,20 @@ export default function IPTV() {
             </div>
           )}
 
-          <Divider>定时启停</Divider>
-
-          <Form.Item name="auto_start_cron" label="定时启动">
-            <CronScheduleInput label="" />
-          </Form.Item>
-          <Form.Item name="auto_stop_cron" label="定时停止">
-            <CronScheduleInput label="" />
-          </Form.Item>
+          <Collapse size="small" items={[{
+            key: 'schedule',
+            label: '定时设置',
+            children: (
+              <>
+                <Form.Item name="auto_start_cron" label="定时启动" style={{ marginBottom: 8 }}>
+                  <CronScheduleInput />
+                </Form.Item>
+                <Form.Item name="auto_stop_cron" label="定时停止" style={{ marginBottom: 0 }}>
+                  <CronScheduleInput />
+                </Form.Item>
+              </>
+            ),
+          }]} />
         </Form>
       </Modal>
 

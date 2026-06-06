@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Modal, Form, Input, InputNumber, Select, Space, Table, Tag, message, Popconfirm, Tooltip } from 'antd';
+import { Button, Card, Modal, Form, Input, InputNumber, Select, Space, Table, Tag, message, Popconfirm, Tooltip, Collapse } from 'antd';
 import { PlusOutlined, PlayCircleOutlined, StopOutlined, DeleteOutlined, StopFilled, EditOutlined, InfoCircleOutlined, FileTextOutlined } from '@ant-design/icons';
 import { getTasks, createTask, updateTask, startTask, pauseTask, resumeTask, stopTask, deleteTask, getLinks, stopAllTasks, getSettings } from '../api';
 import TaskLogDrawer from '../components/TaskLogDrawer';
@@ -237,12 +237,20 @@ export default function Tasks() {
               <InfoCircleOutlined /> 任务正在运行，修改后的设置将在下次启动时生效。
             </div>
           )}
-          <Form.Item name="auto_start_cron" label="定时启动">
-            <CronScheduleInput label="" />
-          </Form.Item>
-          <Form.Item name="auto_stop_cron" label="定时停止">
-            <CronScheduleInput label="" />
-          </Form.Item>
+          <Collapse size="small" items={[{
+            key: 'schedule',
+            label: '定时设置',
+            children: (
+              <>
+                <Form.Item name="auto_start_cron" label="定时启动" style={{ marginBottom: 8 }}>
+                  <CronScheduleInput />
+                </Form.Item>
+                <Form.Item name="auto_stop_cron" label="定时停止" style={{ marginBottom: 0 }}>
+                  <CronScheduleInput />
+                </Form.Item>
+              </>
+            ),
+          }]} />
         </Form>
       </Modal>
 

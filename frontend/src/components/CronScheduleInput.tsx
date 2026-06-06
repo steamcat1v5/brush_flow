@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Form, Input, InputNumber, Switch, Space, Select } from 'antd';
+import { Input, InputNumber, Switch, Space, Select } from 'antd';
 
 const WEEKDAY_OPTIONS = [
   { label: '每天', value: '*' },
@@ -14,12 +14,10 @@ const WEEKDAY_OPTIONS = [
   { label: '周日', value: '0' },
 ];
 
-/** 将 hour + minute + weekday 组合为 cron 表达式 */
 export function buildCron(hour: number, minute: number, weekday: string): string {
   return `${minute} ${hour} * * ${weekday}`;
 }
 
-/** 尝试从 cron 表达式解析出 hour, minute, weekday */
 export function parseCron(cron: string): { hour: number; minute: number; weekday: string } | null {
   if (!cron) return null;
   const parts = cron.trim().split(/\s+/);
@@ -33,12 +31,11 @@ export function parseCron(cron: string): { hour: number; minute: number; weekday
 interface CronScheduleInputProps {
   value?: string;
   onChange?: (value: string | undefined) => void;
-  label: string;
 }
 
-export default function CronScheduleInput({ value, onChange, label }: CronScheduleInputProps) {
+export default function CronScheduleInput({ value, onChange }: CronScheduleInputProps) {
+  const enabled = !!value;
   const [advanced, setAdvanced] = useState(() => {
-    // 如果已有的 cron 不能被简易选择器解析，则默认切到高级模式
     if (value) {
       const parts = value.trim().split(/\s+/);
       return parts.length !== 5 || parts[2] !== '*' || parts[3] !== '*';
@@ -51,55 +48,48 @@ export default function CronScheduleInput({ value, onChange, label }: CronSchedu
   const minute = parsed?.minute ?? 0;
   const weekday = parsed?.weekday ?? '*';
 
+  const handleEnable = (checked: boolean) => {
+    if (checked) {
+      onChange?.(buildCron(0, 0, '*'));
+    } else {
+      onChange?.(undefined);
+      setAdvanced(false);
+    }
+  };
+
   const handleSimpleChange = (h: number, m: number, w: string) => {
     onChange?.(buildCron(h, m, w));
   };
 
-  const handleAdvancedChange = (cron: string) => {
-    onChange?.(cron || undefined);
-  };
-
-  const handleAdvancedToggle = (checked: boolean) => {
-    setAdvanced(checked);
-    if (!checked && value) {
-      // 切回简易模式时，尝试保留时间
-      const p = parseCron(value);
-      if (p) {
-        onChange?.(buildCron(p.hour, p.minute, '*'));
-      } else {
-        onChange?.(undefined);
-      }
-    }
-  };
+  if (!enabled) {
+    return (
+      <Space>
+        <Switch size="small" checked={false} onChange={handleEnable} />
+        <span style={{ color: '#999', fontSize: 13 }}>未启用</span>
+      </Space>
+    );
+  }
 
   return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-        <span style={{ fontSize: 13, color: '#666' }}>{label}</span>
-        <Switch
-          size="small"
-          checked={advanced}
-          onChange={handleAdvancedToggle}
-          checkedChildren="cron"
-          unCheckedChildren="cron"
-          style={{ marginLeft: 8 }}
-        />
-      </div>
+    <Space size="small" wrap>
+      <Switch size="small" checked onChange={handleEnable} />
       {advanced ? (
         <Input
-          value={value || ''}
-          onChange={(e) => handleAdvancedChange(e.target.value)}
-          placeholder="分 时 日 月 周  (留空=不启用)"
-          style={{ width: '100%' }}
+          value={value}
+          onChange={(e) => onChange?.(e.target.value || undefined)}
+          placeholder="分 时 日 月 周"
+          style={{ width: 180 }}
+          size="small"
         />
       ) : (
-        <Space>
+        <>
           <InputNumber
             min={0}
             max={23}
             value={hour}
             onChange={(h) => handleSimpleChange(h ?? 0, minute, weekday)}
-            style={{ width: 70 }}
+            style={{ width: 64 }}
+            size="small"
             addonAfter="时"
           />
           <InputNumber
@@ -107,17 +97,26 @@ export default function CronScheduleInput({ value, onChange, label }: CronSchedu
             max={59}
             value={minute}
             onChange={(m) => handleSimpleChange(hour, m ?? 0, weekday)}
-            style={{ width: 70 }}
+            style={{ width: 64 }}
+            size="small"
             addonAfter="分"
           />
           <Select
             value={weekday}
             onChange={(w) => handleSimpleChange(hour, minute, w)}
-            style={{ width: 100 }}
+            style={{ width: 80 }}
+            size="small"
             options={WEEKDAY_OPTIONS}
           />
-        </Space>
+        </>
       )}
-    </div>
+      <Switch
+        size="small"
+        checked={advanced}
+        onChange={setAdvanced}
+        checkedChildren="cron"
+        unCheckedChildren="cron"
+      />
+    </Space>
   );
 }
