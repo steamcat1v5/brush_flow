@@ -60,6 +60,57 @@ async for chunk in resp.content.iter_chunked(settings.chunk_size):
 *   **WebSocket 推送**：后端每秒计算一次各任务的瞬时速度，通过 WebSocket 主动推送到前端，避免了前端频繁轮询 API。
 *   **动态估算**：前端基于实时下载速度和剩余目标流量，动态计算预计达成时间。
 
+### 6.1 当日流量 REST 接口
+
+当日流量统计由 `GET /api/flow/today` 提供，默认 Docker 地址为：
+
+```http
+GET http://localhost:8765/api/flow/today
+```
+
+返回数据包含：
+
+```json
+{
+  "total_bytes": 123456789,
+  "current_speed": 102400,
+  "active_tasks": 2,
+  "uptime_seconds": 0
+}
+```
+
+*   `total_bytes`：今日累计下行流量，单位为 bytes。
+*   `current_speed`：当前总速度，单位为 bytes/s。
+*   `active_tasks`：当前运行中的下载任务数量。
+*   `uptime_seconds`：当前实现中固定为 `0`。
+
+### 6.2 WebSocket 实时数据
+
+实时推送地址为：
+
+```text
+ws://localhost:8765/ws/realtime
+```
+
+连接建立后，后端每秒推送一次实时速度和今日累计流量：
+
+```json
+{
+  "type": "speed",
+  "total_bytes_per_sec": 102400,
+  "total_bytes": 123456789,
+  "tasks": [
+    { "task_id": 1, "speed": 51200 }
+  ]
+}
+```
+
+WebSocket 可用于实时展示 `total_bytes` 和 `total_bytes_per_sec`；如果需要 `active_tasks` 等完整当日统计，应调用 `GET /api/flow/today`。FastAPI 默认 Swagger/OpenAPI 不会列出 WebSocket 路由，`/ws/realtime` 需要在项目文档中单独说明。
+
+### 6.3 鉴权边界
+
+当前项目未实现登录系统，REST API 和 WebSocket 均不校验 Token、Cookie 或 Session。部署到公网前，应通过 VPN、反向代理鉴权或防火墙限制访问范围。
+
 ## 7. 存储架构
 
 *   **SQLite WAL 模式**：考虑到工具的单机使用场景，选用了 SQLite 并开启了 WAL (Write-Ahead Logging) 模式。
@@ -243,6 +294,23 @@ IPTV 功能与现有架构无缝集成：
 *   **配置加载优先级**：系统优先读取环境变量，其次读取项目根目录下的 `.env` 文件，最后使用代码中的默认值。
 *   **Docker 集成**：`docker-compose.yml` 自动加载 `.env` 文件，支持动态端口映射。
 *   **前后端分离开发**：在开发环境下，Vite 通过环境变量配置代理，实现前后端联调；在生产环境下（如 Docker），前端被打包成静态资源并由 FastAPI 统一托管，简化了网络拓扑。
+
+### 10.1 Docker 部署后的访问入口
+
+Docker 镜像采用前后端合并部署：FastAPI 进程同时提供 `/api` 后端接口、`/ws/realtime` WebSocket，以及前端 SPA 静态文件。容器端口和宿主机端口均由 `BF_PORT` 控制，默认值为 `8765`。
+
+| 用途 | 默认地址 |
+|------|----------|
+| 前端管理后台 | `http://localhost:8765` |
+| 后端 API 基础路径 | `http://localhost:8765/api` |
+| Swagger API 文档 | `http://localhost:8765/docs` |
+| OpenAPI JSON | `http://localhost:8765/openapi.json` |
+| ReDoc 文档 | `http://localhost:8765/redoc` |
+| 健康检查 | `http://localhost:8765/api/health` |
+| 实时 WebSocket | `ws://localhost:8765/ws/realtime` |
+| IPTV 预览测试页 | `http://localhost:8765/iptv-test` |
+
+前端通过相对路径 `/api` 调用后端，因此 Docker 部署时无需单独配置前端 API 域名。除 `/api/*`、`/ws/*`、`/docs`、`/openapi.json` 等后端路由外，其余路径由后端返回前端 `index.html`，用于支持 React Router 的 SPA 路由刷新。
 
 ---
 **BrushFlow 设计原则**：高效、透明、不写盘。

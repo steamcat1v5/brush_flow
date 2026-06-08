@@ -29,6 +29,23 @@
 
 访问 `http://localhost:8765` 即可进入管理后台（端口可在 `.env` 中修改）。
 
+### 访问地址与 API 文档
+
+Docker 部署时前端构建产物由 FastAPI 托管，前后端共用同一个 `BF_PORT` 端口（默认 `8765`）：
+
+| 用途 | 默认地址 |
+|------|----------|
+| 前端管理后台 | `http://localhost:8765` |
+| 后端 API 基础路径 | `http://localhost:8765/api` |
+| Swagger API 文档 | `http://localhost:8765/docs` |
+| OpenAPI JSON | `http://localhost:8765/openapi.json` |
+| ReDoc 文档 | `http://localhost:8765/redoc` |
+| 健康检查 | `http://localhost:8765/api/health` |
+| 实时 WebSocket | `ws://localhost:8765/ws/realtime` |
+| IPTV 预览测试页 | `http://localhost:8765/iptv-test` |
+
+当日流量可通过 `GET /api/flow/today` 获取；WebSocket 会每秒推送实时速度和今日累计流量。FastAPI 默认 Swagger/OpenAPI 不会列出 WebSocket 路由，`/ws/realtime` 请以本文档说明为准。当前项目未实现登录鉴权，直接暴露到公网前建议放在 VPN、反向代理鉴权或防火墙后。
+
 ### 本地开发部署
 
 #### 后端
