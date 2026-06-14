@@ -1,9 +1,8 @@
-# IPTV 任务在 flow_tracker 中使用 task_id + OFFSET，避免与下载任务 ID 冲突
-IPTV_TASK_ID_OFFSET = 100000
 import asyncio
 import logging
 import random
 import time
+from datetime import datetime
 
 import aiohttp
 
@@ -18,6 +17,9 @@ from sqlalchemy import select
 from app.models.task import TaskStatus
 
 logger = logging.getLogger(__name__)
+
+# IPTV 任务在 flow_tracker 中使用 task_id + OFFSET，避免与下载任务 ID 冲突
+IPTV_TASK_ID_OFFSET = 100000
 
 
 class IptvTaskRunner:
@@ -170,10 +172,7 @@ class IptvTaskRunner:
 
                                 # 检查目标量
                                 if self.target_bytes > 0 and self.total_downloaded >= self.target_bytes:
-                                    self.status = TaskStatus.COMPLETED.value
-                                    from app.utils.humanize import format_bytes
-                                    await log_task(self.task_id, "iptv", "info",
-                                                   f"已达目标下载量 ({format_bytes(self.total_downloaded)})，任务自动完成")
+                                    asyncio.create_task(iptv_engine.complete_task(self.task_id))
                                     return
 
                             # 模拟实时播放：等待最后一个分片的时长再拉取新分片
@@ -313,6 +312,53 @@ class IptvEngine:
 
     def get_all_runners(self) -> dict[int, IptvTaskRunner]:
         return dict(self._runners)
+
+    async def complete_task(self, task_id: int):
+        """IPTV 任务达量完成处理"""
+        runner = self._runners.get(task_id)
+        if not runner:
+            return
+
+        # 避免并发多次触发
+        if runner.status == TaskStatus.COMPLETED.value:
+            return
+        runner.status = TaskStatus.COMPLETED.value
+
+        runner._stop_event.set()
+        runner._pause_event.set()
+
+        # 取消 runner 协程
+        if runner._task:
+            runner._task.cancel()
+            try:
+                await runner._task
+            except (asyncio.CancelledError, Exception):
+                pass
+
+        # 记录日志
+        from app.utils.humanize import format_bytes
+        logger.info(f"IPTV 任务 {task_id} 已达目标下载量 ({format_bytes(runner.total_downloaded)})，任务自动完成")
+        await log_task(task_id, "iptv", "info",
+                       f"已达目标下载量 ({format_bytes(runner.total_downloaded)})，任务自动完成")
+
+        # 同步数据库状态
+        try:
+            from app.database import async_session
+            from app.models.iptv_task import IptvTask
+            async with async_session() as session:
+                task = await session.get(IptvTask, task_id)
+                if task:
+                    task.status = TaskStatus.COMPLETED.value
+                    task.total_downloaded = runner.total_downloaded
+                    task.stopped_at = datetime.now()
+                    await session.commit()
+                    logger.info(f"IPTV 任务 {task_id} 数据库状态已成功更新为 COMPLETED")
+        except Exception as e:
+            logger.error(f"更新 IPTV 任务 {task_id} 完成状态到数据库失败: {e}")
+
+        # 从内存中移除
+        if task_id in self._runners:
+            del self._runners[task_id]
 
 
 iptv_engine = IptvEngine()

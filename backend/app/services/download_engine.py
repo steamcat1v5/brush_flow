@@ -73,10 +73,7 @@ class DownloadTask:
 
             # 检查是否达到目标
             if self.target_bytes > 0 and self.total_downloaded >= self.target_bytes:
-                self.status = TaskStatus.COMPLETED.value
-                from app.utils.humanize import format_bytes
-                await log_task(self.task_id, "download", "info",
-                               f"已达目标下载量 ({format_bytes(self.total_downloaded)})，任务自动完成")
+                asyncio.create_task(download_engine.complete_download(self.task_id))
                 break
 
             try:
@@ -127,6 +124,7 @@ class DownloadTask:
 
                         # 达到目标
                         if self.target_bytes > 0 and self.total_downloaded >= self.target_bytes:
+                            asyncio.create_task(download_engine.complete_download(self.task_id))
                             break
         finally:
             # 释放全局并发许可
@@ -196,6 +194,53 @@ class DownloadEngine:
     async def stop_all(self):
         for task_id in list(self._tasks.keys()):
             await self.stop_download(task_id)
+
+    async def complete_download(self, task_id: int):
+        """下载任务达量完成处理"""
+        dl_task = self._tasks.get(task_id)
+        if not dl_task:
+            return
+
+        # 避免并发多次触发
+        if dl_task.status == TaskStatus.COMPLETED.value:
+            return
+        dl_task.status = TaskStatus.COMPLETED.value
+
+        dl_task._stop_event.set()
+        dl_task._pause_event.set()
+
+        # 取消所有 worker 协程
+        for w in dl_task._workers:
+            w.cancel()
+
+        # 等待所有 worker 退出
+        await asyncio.gather(*dl_task._workers, return_exceptions=True)
+        dl_task._workers.clear()
+
+        # 记录日志
+        from app.utils.humanize import format_bytes
+        logger.info(f"任务 {task_id} 已达目标下载量 ({format_bytes(dl_task.total_downloaded)})，任务自动完成")
+        await log_task(task_id, "download", "info",
+                       f"已达目标下载量 ({format_bytes(dl_task.total_downloaded)})，任务自动完成")
+
+        # 同步数据库状态
+        try:
+            from app.database import async_session
+            from app.models.task import Task
+            async with async_session() as session:
+                task = await session.get(Task, task_id)
+                if task:
+                    task.status = TaskStatus.COMPLETED.value
+                    task.total_downloaded = dl_task.total_downloaded
+                    task.stopped_at = datetime.now()
+                    await session.commit()
+                    logger.info(f"任务 {task_id} 数据库状态已成功更新为 COMPLETED")
+        except Exception as e:
+            logger.error(f"更新任务 {task_id} 完成状态到数据库失败: {e}")
+
+        # 从内存中移除
+        if task_id in self._tasks:
+            del self._tasks[task_id]
 
 
 download_engine = DownloadEngine()
