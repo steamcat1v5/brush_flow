@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
+from app.models.task import TaskStatus
 
 
 # ---- m3u Source ----
@@ -70,7 +71,7 @@ class IptvTaskOut(BaseModel):
     channel_id: int
     channel_name: str = ""
     name: str
-    status: str
+    status: TaskStatus
     speed_limit: int
     target_bytes: int
     total_downloaded: int

@@ -6,7 +6,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.database import async_session
 from app.models.flow_log import FlowLog, FlowSummary
 from app.models.settings_model import Setting
-from app.models.task import Task
+from app.models.task import Task, TaskStatus
 from app.models.link import Link
 from app.services.download_engine import download_engine
 from app.services.task_logger import log_task
@@ -29,7 +29,7 @@ async def _start_single_task(task_type: str, task_id: int):
                 if not task:
                     logger.warning(f"任务不存在: download#{task_id}")
                     return
-                if task.status not in ("pending", "stopped", "failed"):
+                if task.status not in (TaskStatus.PENDING.value, TaskStatus.STOPPED.value, TaskStatus.FAILED.value):
                     logger.info(f"任务状态为 {task.status}，跳过启动")
                     await log_task(task_id, "download", "info", f"[定时] 任务状态为{task.status}，跳过启动")
                     return
@@ -37,7 +37,7 @@ async def _start_single_task(task_type: str, task_id: int):
                 if not link:
                     logger.warning(f"关联链接不存在: task#{task_id}")
                     return
-                task.status = "running"
+                task.status = TaskStatus.RUNNING.value
                 task.started_at = datetime.now()
                 await download_engine.start_download(
                     task_id=task.id,
@@ -56,7 +56,7 @@ async def _start_single_task(task_type: str, task_id: int):
                 if not task:
                     logger.warning(f"任务不存在: iptv#{task_id}")
                     return
-                if task.status not in ("pending", "stopped", "failed"):
+                if task.status not in (TaskStatus.PENDING.value, TaskStatus.STOPPED.value, TaskStatus.FAILED.value):
                     logger.info(f"任务状态为 {task.status}，跳过启动")
                     await log_task(task_id, "iptv", "info", f"[定时] 任务状态为{task.status}，跳过启动")
                     return
@@ -64,7 +64,7 @@ async def _start_single_task(task_type: str, task_id: int):
                 if not ch:
                     logger.warning(f"关联频道不存在: iptv_task#{task_id}")
                     return
-                task.status = "running"
+                task.status = TaskStatus.RUNNING.value
                 task.started_at = datetime.now()
                 await iptv_engine.start_task(
                     task_id=task.id,
@@ -95,7 +95,7 @@ async def _stop_single_task(task_type: str, task_id: int):
                 if not task:
                     logger.warning(f"任务不存在: download#{task_id}")
                     return
-                if task.status not in ("running", "paused"):
+                if task.status not in (TaskStatus.RUNNING.value, TaskStatus.PAUSED.value):
                     logger.info(f"任务状态为 {task.status}，跳过停止")
                     await log_task(task_id, "download", "info", f"[定时] 任务状态为{task.status}，跳过停止")
                     return
@@ -103,7 +103,7 @@ async def _stop_single_task(task_type: str, task_id: int):
                 if dl_task:
                     task.total_downloaded = dl_task.total_downloaded
                     await download_engine.stop_download(task_id)
-                task.status = "stopped"
+                task.status = TaskStatus.STOPPED.value
                 task.stopped_at = datetime.now()
 
             elif task_type == "iptv":
@@ -114,7 +114,7 @@ async def _stop_single_task(task_type: str, task_id: int):
                 if not task:
                     logger.warning(f"任务不存在: iptv#{task_id}")
                     return
-                if task.status not in ("running", "paused"):
+                if task.status not in (TaskStatus.RUNNING.value, TaskStatus.PAUSED.value):
                     logger.info(f"任务状态为 {task.status}，跳过停止")
                     await log_task(task_id, "iptv", "info", f"[定时] 任务状态为{task.status}，跳过停止")
                     return
@@ -122,7 +122,7 @@ async def _stop_single_task(task_type: str, task_id: int):
                 if runner:
                     task.total_downloaded = runner.total_downloaded
                     await iptv_engine.stop_task(task_id)
-                task.status = "stopped"
+                task.status = TaskStatus.STOPPED.value
                 task.stopped_at = datetime.now()
 
             await session.commit()
@@ -297,21 +297,21 @@ async def check_daily_target():
                 logger.info(f"今日流量已达标 ({current_gb:.2f}GB / {target_gb:.2f}GB)，正在停止任务...")
                 await download_engine.stop_all()
 
-                task_stmt = select(Task).where(Task.status == "running")
+                task_stmt = select(Task).where(Task.status == TaskStatus.RUNNING.value)
                 result = await session.execute(task_stmt)
                 tasks = result.scalars().all()
                 for task in tasks:
-                    task.status = "stopped"
+                    task.status = TaskStatus.STOPPED.value
                     task.stopped_at = datetime.now()
 
                 from app.models.iptv_task import IptvTask
                 from app.services.iptv_engine import iptv_engine
                 await iptv_engine.stop_all()
-                iptv_stmt = select(IptvTask).where(IptvTask.status.in_(["running", "paused"]))
+                iptv_stmt = select(IptvTask).where(IptvTask.status.in_([TaskStatus.RUNNING.value, TaskStatus.PAUSED.value]))
                 iptv_result = await session.execute(iptv_stmt)
                 iptv_tasks = iptv_result.scalars().all()
                 for iptv_task in iptv_tasks:
-                    iptv_task.status = "stopped"
+                    iptv_task.status = TaskStatus.STOPPED.value
                     iptv_task.stopped_at = datetime.now()
 
                 await session.commit()

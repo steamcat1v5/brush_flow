@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
 
     # 清理暂停状态的任务，恢复之前运行中的任务
     from sqlalchemy import select, update
-    from app.models.task import Task
+    from app.models.task import Task, TaskStatus
     from app.models.iptv_task import IptvTask
     from app.models.link import Link
     from app.models.iptv_channel import IptvChannel
@@ -38,21 +38,21 @@ async def lifespan(app: FastAPI):
 
     async with async_session() as session:
         # paused 任务重置为 stopped
-        await session.execute(update(Task).where(Task.status == "paused").values(status="stopped"))
-        await session.execute(update(IptvTask).where(IptvTask.status == "paused").values(status="stopped"))
+        await session.execute(update(Task).where(Task.status == TaskStatus.PAUSED.value).values(status=TaskStatus.STOPPED.value))
+        await session.execute(update(IptvTask).where(IptvTask.status == TaskStatus.PAUSED.value).values(status=TaskStatus.STOPPED.value))
         await session.commit()
 
     # 恢复之前 running 的任务（在新 session 中，避免长时间持锁）
     async with async_session() as session:
         # 恢复之前 running 的下载任务
-        stmt = select(Task).where(Task.status == "running")
+        stmt = select(Task).where(Task.status == TaskStatus.RUNNING.value)
         result = await session.execute(stmt)
         download_tasks = result.scalars().all()
         restored_download = 0
         for task in download_tasks:
             link = await session.get(Link, task.link_id)
             if not link:
-                task.status = "stopped"
+                task.status = TaskStatus.STOPPED.value
                 continue
             try:
                 await download_engine.start_download(
@@ -63,18 +63,18 @@ async def lifespan(app: FastAPI):
                 restored_download += 1
             except Exception as e:
                 logger.error(f"恢复下载任务 {task.id} 失败: {e}")
-                task.status = "stopped"
+                task.status = TaskStatus.STOPPED.value
 
         # 恢复之前 running 的 IPTV 任务
         from app.services.iptv_engine import iptv_engine
-        iptv_stmt = select(IptvTask).where(IptvTask.status == "running")
+        iptv_stmt = select(IptvTask).where(IptvTask.status == TaskStatus.RUNNING.value)
         iptv_result = await session.execute(iptv_stmt)
         iptv_tasks_list = iptv_result.scalars().all()
         restored_iptv = 0
         for iptv_task in iptv_tasks_list:
             ch = await session.get(IptvChannel, iptv_task.channel_id)
             if not ch:
-                iptv_task.status = "stopped"
+                iptv_task.status = TaskStatus.STOPPED.value
                 continue
             try:
                 await iptv_engine.start_task(
@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI):
                 restored_iptv += 1
             except Exception as e:
                 logger.error(f"恢复 IPTV 任务 {iptv_task.id} 失败: {e}")
-                iptv_task.status = "stopped"
+                iptv_task.status = TaskStatus.STOPPED.value
 
         await session.commit()
         logger.info(f"已恢复 {restored_download} 个下载任务，{restored_iptv} 个 IPTV 任务")

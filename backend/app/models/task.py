@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import Enum
 from typing import Optional
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, func
@@ -7,13 +8,22 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
 
+class TaskStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    STOPPED = "stopped"
+
+
 class Task(Base):
     __tablename__ = "tasks"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     link_id: Mapped[int] = mapped_column(Integer, ForeignKey("links.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending/running/paused/completed/failed
+    status: Mapped[str] = mapped_column(String(20), default=TaskStatus.PENDING.value)  # pending/running/paused/completed/failed
     concurrency: Mapped[int] = mapped_column(Integer, default=5)
     total_downloaded: Mapped[int] = mapped_column(Integer, default=0)
     target_bytes: Mapped[int] = mapped_column(Integer, default=0)  # 0=无限循环

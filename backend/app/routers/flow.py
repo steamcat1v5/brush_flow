@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.flow_log import FlowLog, FlowSummary
-from app.models.task import Task
+from app.models.task import Task, TaskStatus
+from app.models.iptv_task import IptvTask
 from app.models.task_log import TaskLog
 from app.schemas.flow import FlowLogOut, FlowSummaryOut, TodayStats
 from app.services.flow_tracker import flow_tracker
@@ -19,14 +20,20 @@ async def get_today_stats(db: AsyncSession = Depends(get_db)):
     stats = await flow_tracker.get_today_stats()
 
     # 活跃任务数
-    active_stmt = select(func.count(Task.id)).where(Task.status == "running")
+    active_stmt = select(func.count(Task.id)).where(Task.status == TaskStatus.RUNNING.value)
     active_result = await db.execute(active_stmt)
     active_tasks = active_result.scalar() or 0
+
+    iptv_active_stmt = select(func.count(IptvTask.id)).where(IptvTask.status == TaskStatus.RUNNING.value)
+    iptv_active_result = await db.execute(iptv_active_stmt)
+    iptv_active_tasks = iptv_active_result.scalar() or 0
+
+    total_active_tasks = active_tasks + iptv_active_tasks
 
     return TodayStats(
         total_bytes=stats["total_bytes"],
         current_speed=stats["current_speed"],
-        active_tasks=active_tasks,
+        active_tasks=total_active_tasks,
         uptime_seconds=0,
     )
 

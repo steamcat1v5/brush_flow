@@ -8,6 +8,7 @@ import sys
 from app.services.download_engine import DownloadEngine
 from app.services.flow_tracker import FlowTracker
 from app.utils.humanize import format_bytes, format_speed
+from app.models.task import TaskStatus
 
 
 async def run(url: str, concurrency: int, target_mb: int):
@@ -44,7 +45,7 @@ async def run(url: str, concurrency: int, target_mb: int):
             )
             sys.stdout.flush()
 
-            if status in ("completed", "failed", "stopped"):
+            if status in (TaskStatus.COMPLETED.value, TaskStatus.FAILED.value, TaskStatus.STOPPED.value):
                 break
     except KeyboardInterrupt:
         print("\n正在停止...")

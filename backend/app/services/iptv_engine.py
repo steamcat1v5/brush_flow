@@ -15,6 +15,7 @@ from app.utils.limiter import TokenBucket
 from app.database import async_session
 from app.models.iptv_channel import IptvChannel
 from sqlalchemy import select
+from app.models.task import TaskStatus
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ class IptvTaskRunner:
         self.current_channel_id = current_channel_id
         self.switch_mode = switch_mode
 
-        self.status = "pending"
+        self.status = TaskStatus.PENDING.value
         self.total_downloaded = 0
         self._stop_event = asyncio.Event()
         self._pause_event = asyncio.Event()
@@ -46,14 +47,14 @@ class IptvTaskRunner:
         self._session: aiohttp.ClientSession | None = None
 
     async def start(self):
-        self.status = "running"
+        self.status = TaskStatus.RUNNING.value
         self._stop_event.clear()
         self._pause_event.set()
         self._task = asyncio.create_task(self._main_loop())
         logger.info(f"IPTV 任务 {self.task_id} 启动，频道 URL: {self.hls_url}")
 
     async def stop(self):
-        self.status = "stopped"
+        self.status = TaskStatus.STOPPED.value
         self._stop_event.set()
         self._pause_event.set()
         if self._task:
@@ -66,12 +67,12 @@ class IptvTaskRunner:
         await log_task(self.task_id, "iptv", "info", f"IPTV 任务停止，累计下载: {self.total_downloaded}")
 
     async def pause(self):
-        self.status = "paused"
+        self.status = TaskStatus.PAUSED.value
         self._pause_event.clear()
         logger.info(f"IPTV 任务 {self.task_id} 已暂停")
 
     async def resume(self):
-        self.status = "running"
+        self.status = TaskStatus.RUNNING.value
         self._pause_event.set()
         logger.info(f"IPTV 任务 {self.task_id} 已恢复")
 
@@ -169,7 +170,7 @@ class IptvTaskRunner:
 
                                 # 检查目标量
                                 if self.target_bytes > 0 and self.total_downloaded >= self.target_bytes:
-                                    self.status = "completed"
+                                    self.status = TaskStatus.COMPLETED.value
                                     from app.utils.humanize import format_bytes
                                     await log_task(self.task_id, "iptv", "info",
                                                    f"已达目标下载量 ({format_bytes(self.total_downloaded)})，任务自动完成")

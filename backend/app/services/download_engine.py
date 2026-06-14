@@ -7,6 +7,7 @@ import aiohttp
 from app.config import settings
 from app.services.flow_tracker import flow_tracker
 from app.services.task_logger import log_task
+from app.models.task import TaskStatus
 from app.utils.limiter import TokenBucket
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,7 @@ class DownloadTask:
         self.concurrency = concurrency
         self.target_bytes = target_bytes  # 0=无限
         self.speed_limit = speed_limit  # bytes/s per task (共享), 0=不限
-        self.status = "pending"
+        self.status = TaskStatus.PENDING.value
         self.total_downloaded = initial_downloaded
         self._stop_event = asyncio.Event()
         self._pause_event = asyncio.Event()
@@ -33,7 +34,7 @@ class DownloadTask:
         self._limiter = TokenBucket(speed_limit, speed_limit * 2) if speed_limit > 0 else None
 
     async def start(self):
-        self.status = "running"
+        self.status = TaskStatus.RUNNING.value
         self._stop_event.clear()
         self._pause_event.set()
         logger.info(f"任务 {self.task_id} 启动，并发数: {self.concurrency}")
@@ -43,7 +44,7 @@ class DownloadTask:
             self._workers.append(worker)
 
     async def stop(self):
-        self.status = "stopped"
+        self.status = TaskStatus.STOPPED.value
         self._stop_event.set()
         self._pause_event.set()
         for w in self._workers:
@@ -54,12 +55,12 @@ class DownloadTask:
         await log_task(self.task_id, "download", "info", f"任务停止，累计下载: {self.total_downloaded}")
 
     async def pause(self):
-        self.status = "paused"
+        self.status = TaskStatus.PAUSED.value
         self._pause_event.clear()
         logger.info(f"任务 {self.task_id} 已暂停")
 
     async def resume(self):
-        self.status = "running"
+        self.status = TaskStatus.RUNNING.value
         self._pause_event.set()
         logger.info(f"任务 {self.task_id} 已恢复")
 
@@ -72,7 +73,7 @@ class DownloadTask:
 
             # 检查是否达到目标
             if self.target_bytes > 0 and self.total_downloaded >= self.target_bytes:
-                self.status = "completed"
+                self.status = TaskStatus.COMPLETED.value
                 from app.utils.humanize import format_bytes
                 await log_task(self.task_id, "download", "info",
                                f"已达目标下载量 ({format_bytes(self.total_downloaded)})，任务自动完成")

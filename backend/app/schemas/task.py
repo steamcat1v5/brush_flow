@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
+from app.models.task import TaskStatus
 
 
 class TaskCreate(BaseModel):
@@ -27,7 +28,7 @@ class TaskOut(BaseModel):
     id: int
     link_id: int
     name: str
-    status: str
+    status: TaskStatus
     concurrency: int
     total_downloaded: int
     target_bytes: int

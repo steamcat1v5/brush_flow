@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.link import Link
-from app.models.task import Task
+from app.models.task import Task, TaskStatus
 from app.schemas.task import TaskCreate, TaskOut, TaskUpdate
 from app.services.download_engine import download_engine
 from app.services.flow_tracker import flow_tracker
@@ -45,12 +45,12 @@ def _task_to_out(task: Task) -> TaskOut:
 
 @router.get("", response_model=list[TaskOut])
 async def list_tasks(
-    status: str | None = None,
+    status: TaskStatus | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Task)
     if status:
-        stmt = stmt.where(Task.status == status)
+        stmt = stmt.where(Task.status == status.value)
     stmt = stmt.order_by(Task.id)
     result = await db.execute(stmt)
     tasks = result.scalars().all()
@@ -141,7 +141,7 @@ async def start_task(task_id: int, db: AsyncSession = Depends(get_db)):
 
     # 如果任务之前失败过，重置重试计数
     task.retry_count = 0
-    task.status = "running"
+    task.status = TaskStatus.RUNNING.value
     task.started_at = datetime.now()
     await db.commit()
 
@@ -165,7 +165,7 @@ async def pause_task(task_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(404, "任务不存在")
 
     await download_engine.pause_download(task_id)
-    task.status = "paused"
+    task.status = TaskStatus.PAUSED.value
     await db.commit()
     await log_task(task_id, "download", "info", "用户暂停任务")
     return {"ok": True, "message": "任务已暂停"}
@@ -178,7 +178,7 @@ async def resume_task(task_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(404, "任务不存在")
 
     await download_engine.resume_download(task_id)
-    task.status = "running"
+    task.status = TaskStatus.RUNNING.value
     await db.commit()
     await log_task(task_id, "download", "info", "用户恢复任务")
     return {"ok": True, "message": "任务已恢复"}
@@ -196,7 +196,7 @@ async def stop_task(task_id: int, db: AsyncSession = Depends(get_db)):
         task.total_downloaded = dl_task.total_downloaded
         await download_engine.stop_download(task_id)
 
-    task.status = "stopped"
+    task.status = TaskStatus.STOPPED.value
     task.stopped_at = datetime.now()
     await db.commit()
     await log_task(task_id, "download", "info", "用户停止任务")
@@ -209,7 +209,7 @@ async def delete_task(task_id: int, db: AsyncSession = Depends(get_db)):
     if not task:
         raise HTTPException(404, "任务不存在")
 
-    if task.status == "running":
+    if task.status == TaskStatus.RUNNING.value:
         await download_engine.stop_download(task_id)
 
     # 移除定时任务
@@ -225,11 +225,11 @@ async def stop_all_tasks(db: AsyncSession = Depends(get_db)):
     """停止所有运行中的任务"""
     await download_engine.stop_all()
 
-    stmt = select(Task).where(Task.status.in_(["running", "paused"]))
+    stmt = select(Task).where(Task.status.in_([TaskStatus.RUNNING.value, TaskStatus.PAUSED.value]))
     result = await db.execute(stmt)
     tasks = result.scalars().all()
     for task in tasks:
-        task.status = "stopped"
+        task.status = TaskStatus.STOPPED.value
         task.stopped_at = datetime.now()
     await db.commit()
     return {"ok": True, "stopped_count": len(tasks)}

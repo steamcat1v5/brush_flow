@@ -5,6 +5,7 @@ from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.task import TaskStatus
 
 
 class IptvTask(Base):
@@ -14,7 +15,7 @@ class IptvTask(Base):
     source_id: Mapped[int] = mapped_column(Integer, ForeignKey("iptv_sources.id"), nullable=False)
     channel_id: Mapped[int] = mapped_column(Integer, ForeignKey("iptv_channels.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="pending")
+    status: Mapped[str] = mapped_column(String(20), default=TaskStatus.PENDING.value)
     speed_limit: Mapped[int] = mapped_column(Integer, default=0)  # bytes/s, 0=unlimited
     target_bytes: Mapped[int] = mapped_column(Integer, default=0)  # 0=unlimited
     total_downloaded: Mapped[int] = mapped_column(Integer, default=0)

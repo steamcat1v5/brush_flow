@@ -10,6 +10,7 @@ from app.database import get_db
 from app.models.iptv_source import IptvSource
 from app.models.iptv_channel import IptvChannel
 from app.models.iptv_task import IptvTask
+from app.models.task import TaskStatus
 from app.schemas.iptv import (
     IptvSourceCreate, IptvSourceOut,
     IptvChannelOut,
@@ -231,7 +232,7 @@ async def delete_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
     if not task:
         raise HTTPException(404, "任务不存在")
 
-    if task.status == "running":
+    if task.status == TaskStatus.RUNNING.value:
         await iptv_engine.stop_task(task_id)
 
     # 移除定时任务
@@ -268,7 +269,7 @@ async def start_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
                 f"任务虽已启动，但可能会被后台熔断机制再次停止。"
             )
 
-    task.status = "running"
+    task.status = TaskStatus.RUNNING.value
     task.started_at = datetime.now()
     await db.commit()
 
@@ -298,7 +299,7 @@ async def stop_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
         task.total_downloaded = runner.total_downloaded
         await iptv_engine.stop_task(task_id)
 
-    task.status = "stopped"
+    task.status = TaskStatus.STOPPED.value
     task.stopped_at = datetime.now()
     await db.commit()
     await log_task(task_id, "iptv", "info", "用户停止 IPTV 任务")
@@ -312,7 +313,7 @@ async def pause_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(404, "任务不存在")
 
     await iptv_engine.pause_task(task_id)
-    task.status = "paused"
+    task.status = TaskStatus.PAUSED.value
     await db.commit()
     await log_task(task_id, "iptv", "info", "用户暂停 IPTV 任务")
     return {"ok": True, "message": "IPTV 任务已暂停"}
@@ -325,7 +326,7 @@ async def resume_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(404, "任务不存在")
 
     await iptv_engine.resume_task(task_id)
-    task.status = "running"
+    task.status = TaskStatus.RUNNING.value
     await db.commit()
     await log_task(task_id, "iptv", "info", "用户恢复 IPTV 任务")
     return {"ok": True, "message": "IPTV 任务已恢复"}
@@ -335,11 +336,11 @@ async def resume_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
 async def stop_all_iptv_tasks(db: AsyncSession = Depends(get_db)):
     await iptv_engine.stop_all()
 
-    stmt = select(IptvTask).where(IptvTask.status.in_(["running", "paused"]))
+    stmt = select(IptvTask).where(IptvTask.status.in_([TaskStatus.RUNNING.value, TaskStatus.PAUSED.value]))
     result = await db.execute(stmt)
     tasks = result.scalars().all()
     for task in tasks:
-        task.status = "stopped"
+        task.status = TaskStatus.STOPPED.value
         task.stopped_at = datetime.now()
     await db.commit()
     return {"ok": True, "stopped_count": len(tasks)}
