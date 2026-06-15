@@ -146,6 +146,8 @@ WebSocket 可用于实时展示 `total_bytes` 和 `total_bytes_per_sec`；如果
 | `target_bytes` | Integer | 目标下载量（字节），0=无限 |
 | `speed_limit` | Integer | 任务最大速度（bytes/s），0=不限 |
 | `retry_count` | Integer | 当前连续重试次数，成功后重置 |
+| `auto_start_cron` | String(50) | 定时启动的 cron 表达式，可空 |
+| `auto_stop_cron` | String(50) | 定时停止的 cron 表达式，可空 |
 | `started_at` | DateTime | 启动时间，可空 |
 | `stopped_at` | DateTime | 停止时间，可空 |
 | `created_at` | DateTime | 创建时间 |
@@ -189,6 +191,8 @@ WebSocket 可用于实时展示 `total_bytes` 和 `total_bytes_per_sec`；如果
 | `auto_switch_enabled` | Boolean | 是否启用自动换台，默认 false |
 | `auto_switch_interval` | Integer | 换台间隔（秒），默认 1800 |
 | `switch_mode` | String(20) | 换台模式：random/sequential |
+| `auto_start_cron` | String(50) | 定时启动的 cron 表达式，可空 |
+| `auto_stop_cron` | String(50) | 定时停止的 cron 表达式，可空 |
 | `started_at` | DateTime | 启动时间，可空 |
 | `stopped_at` | DateTime | 停止时间，可空 |
 | `created_at` | DateTime | 创建时间 |
