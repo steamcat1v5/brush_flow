@@ -251,8 +251,8 @@ async def generate_daily_summary():
 
             speed_result = await session.execute(speed_stmt)
             minute_totals = [r[0] for r in speed_result.all()]
-            avg_speed = int(sum(minute_totals) / len(minute_totals)) if minute_totals else 0
-            peak_speed = max(minute_totals) if minute_totals else 0
+            avg_speed = int(sum(minute_totals) / (len(minute_totals) * 60)) if minute_totals else 0
+            peak_speed = int(max(minute_totals) / 60) if minute_totals else 0
 
             existing = select(FlowSummary).where(
                 FlowSummary.period_type == "day",
