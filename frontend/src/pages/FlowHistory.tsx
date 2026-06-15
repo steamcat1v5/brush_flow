@@ -6,6 +6,21 @@ import FlowChart from '../components/FlowChart';
 
 type Period = 'hour' | 'day' | 'week' | 'month';
 
+function usePersistedState<T>(key: string, defaultValue: T): [T, (v: T | ((prev: T) => T)) => void] {
+  const [value, setValue] = useState<T>(() => {
+    const stored = localStorage.getItem(key);
+    return stored !== null ? (JSON.parse(stored) as T) : defaultValue;
+  });
+  const persistedSetValue = (v: T | ((prev: T) => T)) => {
+    setValue((prev) => {
+      const next = v instanceof Function ? v(prev) : v;
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
+  };
+  return [value, persistedSetValue];
+}
+
 interface TaskLogEntry {
   id: number;
   task_id: number;
@@ -27,9 +42,9 @@ export default function FlowHistory() {
   const initTaskType = searchParams.get('task_type');
   const initTab = initTaskId ? 'logs' : 'flow';
 
-  const [period, setPeriod] = useState<Period>('day');
-  const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
-  const [showSplit, setShowSplit] = useState(false);
+  const [period, setPeriod] = usePersistedState<Period>('flow_period', 'day');
+  const [chartType, setChartType] = usePersistedState<'bar' | 'line'>('flow_chartType', 'bar');
+  const [showSplit, setShowSplit] = usePersistedState<boolean>('flow_showSplit', false);
   const [data, setData] = useState<Array<{ period_key: string; total_bytes: number; download_bytes?: number; iptv_bytes?: number }>>([]);
   const [logs, setLogs] = useState<TaskLogEntry[]>([]);
   const [logFilter, setLogFilter] = useState<{ task_id?: number; task_type?: string }>({
