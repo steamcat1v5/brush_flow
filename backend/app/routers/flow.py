@@ -44,6 +44,30 @@ async def get_flow_summary(
     limit: int = 30,
     db: AsyncSession = Depends(get_db),
 ):
+    if period == "hour":
+        # 按小时：从 flow_logs 按小时聚合，区分下载和 IPTV
+        hours_ago = datetime.now() - timedelta(hours=limit)
+        stmt = select(
+            func.strftime("%Y-%m-%d %H:00", FlowLog.logged_at).label("period_key"),
+            func.sum(FlowLog.bytes_down).label("total_bytes"),
+            func.sum(FlowLog.bytes_down).filter(FlowLog.task_id < 100000).label("download_bytes"),
+            func.sum(FlowLog.bytes_down).filter(FlowLog.task_id >= 100000).label("iptv_bytes"),
+        ).where(
+            FlowLog.logged_at >= hours_ago
+        ).group_by(
+            func.strftime("%Y-%m-%d %H:00", FlowLog.logged_at)
+        ).order_by(
+            func.strftime("%Y-%m-%d %H:00", FlowLog.logged_at).desc()
+        ).limit(limit)
+        result = await db.execute(stmt)
+        rows = result.all()
+        return [
+            FlowSummaryOut(period_type="hour", period_key=r.period_key, total_bytes=r.total_bytes or 0,
+                           download_bytes=r.download_bytes or 0, iptv_bytes=r.iptv_bytes or 0,
+                           task_count=0, avg_speed=0, peak_speed=0)
+            for r in rows
+        ]
+
     if period == "week":
         # 按周：从 flow_logs 按自然周聚合，区分下载和 IPTV
         stmt = select(

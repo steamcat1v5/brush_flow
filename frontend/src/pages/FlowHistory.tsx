@@ -4,7 +4,7 @@ import { Card, Radio, Space, Table, Tag, Tabs, Switch } from 'antd';
 import { getFlowSummary, getTaskLogs } from '../api';
 import FlowChart from '../components/FlowChart';
 
-type Period = 'day' | 'week' | 'month';
+type Period = 'hour' | 'day' | 'week' | 'month';
 
 interface TaskLogEntry {
   id: number;
@@ -49,7 +49,7 @@ export default function FlowHistory() {
     return () => clearInterval(timer);
   }, [logFilter]);
 
-  const labels: Record<Period, string> = { day: '日', week: '周', month: '月' };
+  const labels: Record<Period, string> = { hour: '小时', day: '日', week: '周', month: '月' };
 
   const logColumns = [
     { title: 'ID', dataIndex: 'id', width: 60 },
@@ -81,6 +81,7 @@ export default function FlowHistory() {
               extra={
                 <Space>
                   <Radio.Group value={period} onChange={(e) => setPeriod(e.target.value)}>
+                    <Radio.Button value="hour">按小时</Radio.Button>
                     <Radio.Button value="day">按日</Radio.Button>
                     <Radio.Button value="week">按周</Radio.Button>
                     <Radio.Button value="month">按月</Radio.Button>
