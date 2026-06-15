@@ -80,5 +80,5 @@ export default function FlowChart({ data, title = '流量统计', chartType = 'b
     grid: { left: 80, right: 30, top: 50, bottom: showSplit ? 40 : 30 },
   };
 
-  return <ReactECharts key={`${chartType}-${showSplit}`} option={option} style={{ height: 350 }} />;
+  return <ReactECharts key={`${chartType}-${showSplit}-${categories.length}-${categories[0] || ''}`} option={option} notMerge={true} style={{ height: 350 }} />;
 }

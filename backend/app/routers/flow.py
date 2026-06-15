@@ -46,14 +46,11 @@ async def get_flow_summary(
 ):
     if period == "hour":
         # 按小时：从 flow_logs 按小时聚合，区分下载和 IPTV
-        hours_ago = datetime.now() - timedelta(hours=limit)
         stmt = select(
             func.strftime("%Y-%m-%d %H:00", FlowLog.logged_at).label("period_key"),
             func.sum(FlowLog.bytes_down).label("total_bytes"),
             func.sum(FlowLog.bytes_down).filter(FlowLog.task_id < 100000).label("download_bytes"),
             func.sum(FlowLog.bytes_down).filter(FlowLog.task_id >= 100000).label("iptv_bytes"),
-        ).where(
-            FlowLog.logged_at >= hours_ago
         ).group_by(
             func.strftime("%Y-%m-%d %H:00", FlowLog.logged_at)
         ).order_by(
