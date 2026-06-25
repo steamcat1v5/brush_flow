@@ -316,8 +316,27 @@ export default function IPTV() {
     load();
   };
 
-  const handleAction = async (action: string, id: number) => {
+  const handleAction = async (action: string, id: number, status?: string) => {
     if (action === 'start') {
+      // 已完成任务重启需确认，因为会重置下载量计数
+      if (status === 'completed') {
+        Modal.confirm({
+          title: '重新启动已完成的 IPTV 任务',
+          content: '该任务已达到目标下载量。重新启动将重置下载量计数为0，从0开始重新下载。确定要重新启动吗？',
+          okText: '确定重启',
+          cancelText: '取消',
+          onOk: async () => {
+            const res = await startIptvTask(id);
+            if (res.data.warning) {
+              message.warning({ content: res.data.warning, duration: 10 });
+            } else {
+              message.success('IPTV 任务已启动，下载量计数已重置');
+            }
+            load();
+          },
+        });
+        return;
+      }
       const res = await startIptvTask(id);
       if (res.data.warning) {
         message.warning({ content: res.data.warning, duration: 10 });
@@ -368,7 +387,7 @@ export default function IPTV() {
       render: (_: unknown, record: IptvTask) => (
         <Space>
           {(record.status === 'pending' || record.status === 'stopped' || record.status === 'failed' || record.status === 'completed') && (
-            <Button type="link" size="small" icon={<PlayCircleOutlined />} onClick={() => handleAction('start', record.id)}>启动</Button>
+            <Button type="link" size="small" icon={<PlayCircleOutlined />} onClick={() => handleAction('start', record.id, record.status)}>启动</Button>
           )}
           {record.status === 'running' && (
             <Button type="link" size="small" danger icon={<StopOutlined />} onClick={() => handleAction('stop', record.id)}>停止</Button>

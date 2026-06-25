@@ -249,6 +249,10 @@ async def start_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
     if not task:
         raise HTTPException(404, "任务不存在")
 
+    # 任务已在运行中，拒绝重复启动
+    if task.status == TaskStatus.RUNNING.value:
+        raise HTTPException(400, "任务已在运行中")
+
     channel = await db.get(IptvChannel, task.channel_id)
     if not channel:
         raise HTTPException(404, "关联频道不存在")
@@ -268,6 +272,11 @@ async def start_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
                 f"今日下载量 ({current_gb:.2f}GB) 已达到每日目标 ({target_gb:.2f}GB)，"
                 f"任务虽已启动，但可能会被后台熔断机制再次停止。"
             )
+
+    # 有目标下载量的已完成任务重启时需重置计数，否则引擎会立即再次触发完成
+    if task.status == TaskStatus.COMPLETED.value and task.target_bytes > 0:
+        task.total_downloaded = 0
+        await log_task(task.id, "iptv", "info", "重启已达量完成 IPTV 任务，下载量计数已重置")
 
     task.status = TaskStatus.RUNNING.value
     task.started_at = datetime.now()

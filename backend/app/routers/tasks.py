@@ -122,6 +122,10 @@ async def start_task(task_id: int, db: AsyncSession = Depends(get_db)):
     if not task:
         raise HTTPException(404, "任务不存在")
 
+    # 任务已在运行中，拒绝重复启动
+    if task.status == TaskStatus.RUNNING.value:
+        raise HTTPException(400, "任务已在运行中")
+
     link = await db.get(Link, task.link_id)
     if not link:
         raise HTTPException(404, "关联链接不存在")
@@ -138,6 +142,11 @@ async def start_task(task_id: int, db: AsyncSession = Depends(get_db)):
         current_gb = stats["total_bytes"] / (1024 ** 3)
         if current_gb >= target_gb:
             warning = f"今日下载量 ({current_gb:.2f}GB) 已达到每日目标 ({target_gb:.2f}GB)，任务虽已启动，但可能会被后台熔断机制再次停止。"
+
+    # 有目标下载量的已完成任务重启时需重置计数，否则引擎会立即再次触发完成
+    if task.status == TaskStatus.COMPLETED.value and task.target_bytes > 0:
+        task.total_downloaded = 0
+        await log_task(task.id, "download", "info", "重启已达量完成任务，下载量计数已重置")
 
     # 如果任务之前失败过，重置重试计数
     task.retry_count = 0
