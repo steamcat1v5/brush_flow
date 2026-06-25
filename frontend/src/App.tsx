@@ -16,7 +16,7 @@ import FlowHistory from './pages/FlowHistory';
 import Settings from './pages/Settings';
 import IPTV from './pages/IPTV';
 
-const { Header, Sider, Content } = Layout;
+const { Header, Sider, Content, Footer } = Layout;
 
 const menuItems = [
   { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
@@ -60,6 +60,9 @@ export default function App() {
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </Content>
+        <Footer style={{ textAlign: 'center', background: '#fff', borderTop: '1px solid #f0f0f0' }}>
+          © {new Date().getFullYear()} BrushFlow · <a href="https://github.com/steamcat1v5/brush_flow" target="_blank" rel="noopener noreferrer">GitHub</a>
+        </Footer>
       </Layout>
     </Layout>
   );
