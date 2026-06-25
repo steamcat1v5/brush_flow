@@ -1,28 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Drawer, Table, Tag } from 'antd';
 import { getTaskLogs } from '../api';
-
-interface TaskLogEntry {
-  id: number;
-  task_id: number;
-  task_type: string;
-  level: string;
-  message: string;
-  created_at: string;
-}
-
-const levelColors: Record<string, string> = {
-  info: 'blue',
-  warn: 'orange',
-  error: 'red',
-};
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-}
+import { formatBytes } from '../utils/format';
+import type { TaskLogEntry } from '../types/task';
+import { levelColors } from '../types/task';
 
 function formatMessage(msg: string): string {
   // 将消息中紧跟"下载: "或"下载:"后面的数字格式化为可读大小

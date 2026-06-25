@@ -2,13 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, Card, Modal, Form, Input, InputNumber, Select, Space, Table, Tag, message, Popconfirm } from 'antd';
 import { PlusOutlined, DeleteOutlined, CheckCircleOutlined, LinkOutlined } from '@ant-design/icons';
 import { getLinks, createLink, deleteLink, verifyLink } from '../api';
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-}
+import { formatBytes } from '../utils/format';
 
 export default function Links() {
   const [links, setLinks] = useState<Record<string, unknown>[]>([]);

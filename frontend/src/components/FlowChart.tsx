@@ -1,17 +1,11 @@
 import ReactECharts from 'echarts-for-react';
+import { formatBytes } from '../utils/format';
 
 interface FlowChartProps {
   data: Array<{ period_key: string; total_bytes: number; download_bytes?: number; iptv_bytes?: number }>;
   title?: string;
   chartType?: 'bar' | 'line';
   showSplit?: boolean;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
 }
 
 export default function FlowChart({ data, title = '流量统计', chartType = 'bar', showSplit = false }: FlowChartProps) {

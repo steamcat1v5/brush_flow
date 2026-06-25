@@ -6,6 +6,7 @@ from app.database import get_db
 from app.models.link import Link
 from app.schemas.link import LinkCreate, LinkOut, LinkUpdate, LinkVerifyResult
 from app.utils.validators import verify_url
+from app.routers.crud_helpers import get_or_404, partial_update, delete_entity
 
 router = APIRouter(prefix="/api/links", tags=["links"])
 
@@ -42,33 +43,19 @@ async def create_link(data: LinkCreate, db: AsyncSession = Depends(get_db)):
 
 @router.put("/{link_id}", response_model=LinkOut)
 async def update_link(link_id: int, data: LinkUpdate, db: AsyncSession = Depends(get_db)):
-    link = await db.get(Link, link_id)
-    if not link:
-        raise HTTPException(404, "链接不存在")
-
-    update_data = data.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(link, key, value)
-    await db.commit()
-    await db.refresh(link)
-    return link
+    link = await get_or_404(db, Link, link_id, "链接不存在")
+    return await partial_update(db, link, data)
 
 
 @router.delete("/{link_id}")
 async def delete_link(link_id: int, db: AsyncSession = Depends(get_db)):
-    link = await db.get(Link, link_id)
-    if not link:
-        raise HTTPException(404, "链接不存在")
-    await db.delete(link)
-    await db.commit()
-    return {"ok": True}
+    link = await get_or_404(db, Link, link_id, "链接不存在")
+    return await delete_entity(db, link)
 
 
 @router.post("/{link_id}/verify", response_model=LinkVerifyResult)
 async def verify_link(link_id: int, db: AsyncSession = Depends(get_db)):
-    link = await db.get(Link, link_id)
-    if not link:
-        raise HTTPException(404, "链接不存在")
+    link = await get_or_404(db, Link, link_id, "链接不存在")
 
     result = await verify_url(link.url)
     if result["reachable"] and result["file_size"] > 0:

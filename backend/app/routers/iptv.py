@@ -7,6 +7,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.constants import DEFAULT_USER_AGENT
 from app.models.iptv_source import IptvSource
 from app.models.iptv_channel import IptvChannel
 from app.models.iptv_task import IptvTask
@@ -21,6 +22,8 @@ from app.services.iptv_engine import iptv_engine, IPTV_TASK_ID_OFFSET
 from app.services.flow_tracker import flow_tracker
 from app.services.task_logger import log_task
 from app.services.scheduler import schedule_task_jobs, remove_task_jobs
+from app.utils.traffic import check_daily_traffic_target
+from app.routers.crud_helpers import get_or_404, partial_update
 
 router = APIRouter(prefix="/api/iptv", tags=["iptv"])
 
@@ -56,9 +59,7 @@ async def list_sources(db: AsyncSession = Depends(get_db)):
 
 @router.delete("/sources/{source_id}")
 async def delete_source(source_id: int, db: AsyncSession = Depends(get_db)):
-    source = await db.get(IptvSource, source_id)
-    if not source:
-        raise HTTPException(404, "源不存在")
+    source = await get_or_404(db, IptvSource, source_id, "源不存在")
 
     # 删除关联频道
     channels = await db.execute(
@@ -75,9 +76,7 @@ async def delete_source(source_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/sources/{source_id}/refresh")
 async def refresh_source(source_id: int, db: AsyncSession = Depends(get_db)):
     """重新解析 m3u 源的频道列表。"""
-    source = await db.get(IptvSource, source_id)
-    if not source:
-        raise HTTPException(404, "源不存在")
+    source = await get_or_404(db, IptvSource, source_id, "源不存在")
 
     await _refresh_channels(source, db)
     await db.refresh(source)
@@ -90,9 +89,7 @@ async def list_channels(
     group: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    source = await db.get(IptvSource, source_id)
-    if not source:
-        raise HTTPException(404, "源不存在")
+    source = await get_or_404(db, IptvSource, source_id, "源不存在")
 
     stmt = select(IptvChannel).where(IptvChannel.source_id == source_id)
     if group:
@@ -104,10 +101,7 @@ async def list_channels(
 
 async def _refresh_channels(source: IptvSource, db: AsyncSession):
     """获取 m3u 内容并更新频道列表。"""
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
+    headers = {"User-Agent": DEFAULT_USER_AGENT}
     try:
         async with aiohttp.ClientSession(headers=headers) as session:
             async with session.get(source.m3u_url) as resp:
@@ -169,9 +163,7 @@ def _iptv_task_to_out(task: IptvTask, channel_name: str = "") -> IptvTaskOut:
 @router.post("/tasks", response_model=IptvTaskOut)
 async def create_iptv_task(data: IptvTaskCreate, db: AsyncSession = Depends(get_db)):
     # 验证源和频道
-    source = await db.get(IptvSource, data.source_id)
-    if not source:
-        raise HTTPException(404, "源不存在")
+    source = await get_or_404(db, IptvSource, data.source_id, "源不存在")
     channel = await db.get(IptvChannel, data.channel_id)
     if not channel or channel.source_id != data.source_id:
         raise HTTPException(404, "频道不存在或不属于该源")
@@ -208,16 +200,8 @@ async def list_iptv_tasks(db: AsyncSession = Depends(get_db)):
 
 @router.put("/tasks/{task_id}", response_model=IptvTaskOut)
 async def update_iptv_task(task_id: int, data: IptvTaskUpdate, db: AsyncSession = Depends(get_db)):
-    task = await db.get(IptvTask, task_id)
-    if not task:
-        raise HTTPException(404, "任务不存在")
-
-    update_data = data.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(task, key, value)
-
-    await db.commit()
-    await db.refresh(task)
+    task = await get_or_404(db, IptvTask, task_id, "任务不存在")
+    await partial_update(db, task, data)
 
     # 刷新定时任务
     schedule_task_jobs("iptv", task.id, task.auto_start_cron, task.auto_stop_cron)
@@ -228,9 +212,7 @@ async def update_iptv_task(task_id: int, data: IptvTaskUpdate, db: AsyncSession 
 
 @router.delete("/tasks/{task_id}")
 async def delete_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
-    task = await db.get(IptvTask, task_id)
-    if not task:
-        raise HTTPException(404, "任务不存在")
+    task = await get_or_404(db, IptvTask, task_id, "任务不存在")
 
     if task.status == TaskStatus.RUNNING.value:
         await iptv_engine.stop_task(task_id)
@@ -245,33 +227,16 @@ async def delete_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/tasks/{task_id}/start")
 async def start_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
-    task = await db.get(IptvTask, task_id)
-    if not task:
-        raise HTTPException(404, "任务不存在")
+    task = await get_or_404(db, IptvTask, task_id, "任务不存在")
 
     # 任务已在运行中，拒绝重复启动
     if task.status == TaskStatus.RUNNING.value:
         raise HTTPException(400, "任务已在运行中")
 
-    channel = await db.get(IptvChannel, task.channel_id)
-    if not channel:
-        raise HTTPException(404, "关联频道不存在")
+    channel = await get_or_404(db, IptvChannel, task.channel_id, "关联频道不存在")
 
     # 检查今日流量是否已达标
-    warning = None
-    from app.models.settings_model import Setting
-    stmt = select(Setting).where(Setting.key == "daily_traffic_target_gb")
-    result = await db.execute(stmt)
-    setting = result.scalar_one_or_none()
-    if setting and setting.value != "0":
-        target_gb = float(setting.value)
-        stats = await flow_tracker.get_today_stats()
-        current_gb = stats["total_bytes"] / (1024 ** 3)
-        if current_gb >= target_gb:
-            warning = (
-                f"今日下载量 ({current_gb:.2f}GB) 已达到每日目标 ({target_gb:.2f}GB)，"
-                f"任务虽已启动，但可能会被后台熔断机制再次停止。"
-            )
+    warning = await check_daily_traffic_target(db)
 
     # 有目标下载量的已完成任务重启时需重置计数，否则引擎会立即再次触发完成
     if task.status == TaskStatus.COMPLETED.value and task.target_bytes > 0:
@@ -299,9 +264,7 @@ async def start_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/tasks/{task_id}/stop")
 async def stop_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
-    task = await db.get(IptvTask, task_id)
-    if not task:
-        raise HTTPException(404, "任务不存在")
+    task = await get_or_404(db, IptvTask, task_id, "任务不存在")
 
     runner = iptv_engine.get_runner(task_id)
     if runner:
@@ -317,9 +280,7 @@ async def stop_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/tasks/{task_id}/pause")
 async def pause_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
-    task = await db.get(IptvTask, task_id)
-    if not task:
-        raise HTTPException(404, "任务不存在")
+    task = await get_or_404(db, IptvTask, task_id, "任务不存在")
 
     await iptv_engine.pause_task(task_id)
     task.status = TaskStatus.PAUSED.value
@@ -330,9 +291,7 @@ async def pause_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/tasks/{task_id}/resume")
 async def resume_iptv_task(task_id: int, db: AsyncSession = Depends(get_db)):
-    task = await db.get(IptvTask, task_id)
-    if not task:
-        raise HTTPException(404, "任务不存在")
+    task = await get_or_404(db, IptvTask, task_id, "任务不存在")
 
     await iptv_engine.resume_task(task_id)
     task.status = TaskStatus.RUNNING.value
@@ -369,8 +328,7 @@ async def stream_proxy(path: str, request: Request, base: str = Query(...)):
 
     timeout = aiohttp.ClientTimeout(total=None, connect=10, sock_read=20)
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": DEFAULT_USER_AGENT,
         "Referer": f"{base}/",
     }
 

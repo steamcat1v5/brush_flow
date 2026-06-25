@@ -12,6 +12,8 @@ from app.services.download_engine import download_engine
 from app.services.flow_tracker import flow_tracker
 from app.services.task_logger import log_task
 from app.services.scheduler import schedule_task_jobs, remove_task_jobs
+from app.utils.traffic import check_daily_traffic_target
+from app.routers.crud_helpers import get_or_404, partial_update
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -83,29 +85,18 @@ async def create_task(data: TaskCreate, db: AsyncSession = Depends(get_db)):
 
 @router.put("/{task_id}", response_model=TaskOut)
 async def update_task(task_id: int, data: TaskUpdate, db: AsyncSession = Depends(get_db)):
-    task = await db.get(Task, task_id)
-    if not task:
-        raise HTTPException(404, "任务不存在")
-
-    update_data = data.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(task, key, value)
-
-    await db.commit()
-    await db.refresh(task)
+    task = await get_or_404(db, Task, task_id, "任务不存在")
+    await partial_update(db, task, data)
 
     # 刷新定时任务
     schedule_task_jobs("download", task.id, task.auto_start_cron, task.auto_stop_cron)
 
-    # 如果任务正在运行，提醒用户重启生效
     return _task_to_out(task)
 
 
 @router.get("/{task_id}", response_model=TaskOut)
 async def get_task(task_id: int, db: AsyncSession = Depends(get_db)):
-    task = await db.get(Task, task_id)
-    if not task:
-        raise HTTPException(404, "任务不存在")
+    task = await get_or_404(db, Task, task_id, "任务不存在")
 
     # 同步下载引擎中的实时数据
     dl_task = download_engine.get_task(task_id)
@@ -118,30 +109,16 @@ async def get_task(task_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/{task_id}/start")
 async def start_task(task_id: int, db: AsyncSession = Depends(get_db)):
-    task = await db.get(Task, task_id)
-    if not task:
-        raise HTTPException(404, "任务不存在")
+    task = await get_or_404(db, Task, task_id, "任务不存在")
 
     # 任务已在运行中，拒绝重复启动
     if task.status == TaskStatus.RUNNING.value:
         raise HTTPException(400, "任务已在运行中")
 
-    link = await db.get(Link, task.link_id)
-    if not link:
-        raise HTTPException(404, "关联链接不存在")
+    link = await get_or_404(db, Link, task.link_id, "关联链接不存在")
 
     # 检查今日流量是否已达标 (仅用于返回提醒)
-    warning = None
-    from app.models.settings_model import Setting
-    stmt = select(Setting).where(Setting.key == "daily_traffic_target_gb")
-    result = await db.execute(stmt)
-    setting = result.scalar_one_or_none()
-    if setting and setting.value != "0":
-        target_gb = float(setting.value)
-        stats = await flow_tracker.get_today_stats()
-        current_gb = stats["total_bytes"] / (1024 ** 3)
-        if current_gb >= target_gb:
-            warning = f"今日下载量 ({current_gb:.2f}GB) 已达到每日目标 ({target_gb:.2f}GB)，任务虽已启动，但可能会被后台熔断机制再次停止。"
+    warning = await check_daily_traffic_target(db)
 
     # 有目标下载量的已完成任务重启时需重置计数，否则引擎会立即再次触发完成
     if task.status == TaskStatus.COMPLETED.value and task.target_bytes > 0:
@@ -169,9 +146,7 @@ async def start_task(task_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/{task_id}/pause")
 async def pause_task(task_id: int, db: AsyncSession = Depends(get_db)):
-    task = await db.get(Task, task_id)
-    if not task:
-        raise HTTPException(404, "任务不存在")
+    task = await get_or_404(db, Task, task_id, "任务不存在")
 
     await download_engine.pause_download(task_id)
     task.status = TaskStatus.PAUSED.value
@@ -182,9 +157,7 @@ async def pause_task(task_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/{task_id}/resume")
 async def resume_task(task_id: int, db: AsyncSession = Depends(get_db)):
-    task = await db.get(Task, task_id)
-    if not task:
-        raise HTTPException(404, "任务不存在")
+    task = await get_or_404(db, Task, task_id, "任务不存在")
 
     await download_engine.resume_download(task_id)
     task.status = TaskStatus.RUNNING.value
@@ -195,9 +168,7 @@ async def resume_task(task_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/{task_id}/stop")
 async def stop_task(task_id: int, db: AsyncSession = Depends(get_db)):
-    task = await db.get(Task, task_id)
-    if not task:
-        raise HTTPException(404, "任务不存在")
+    task = await get_or_404(db, Task, task_id, "任务不存在")
 
     dl_task = download_engine.get_task(task_id)
     if dl_task:
@@ -214,9 +185,7 @@ async def stop_task(task_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.delete("/{task_id}")
 async def delete_task(task_id: int, db: AsyncSession = Depends(get_db)):
-    task = await db.get(Task, task_id)
-    if not task:
-        raise HTTPException(404, "任务不存在")
+    task = await get_or_404(db, Task, task_id, "任务不存在")
 
     if task.status == TaskStatus.RUNNING.value:
         await download_engine.stop_download(task_id)

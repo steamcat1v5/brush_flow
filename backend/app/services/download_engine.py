@@ -5,16 +5,20 @@ from datetime import datetime
 import aiohttp
 
 from app.config import settings
+from app.constants import DEFAULT_USER_AGENT
 from app.services.flow_tracker import flow_tracker
 from app.services.task_logger import log_task
+from app.services.base_runner import BaseTaskRunner, BaseEngine
 from app.models.task import TaskStatus
 from app.utils.limiter import TokenBucket
 
 logger = logging.getLogger(__name__)
 
 
-class DownloadTask:
+class DownloadTask(BaseTaskRunner):
     """单个下载任务"""
+
+    _task_type = "download"
 
     def __init__(self, task_id: int, url: str, concurrency: int, target_bytes: int = 0,
                  speed_limit: int = 0, initial_downloaded: int = 0):
@@ -54,16 +58,6 @@ class DownloadTask:
         logger.info(f"任务 {self.task_id} 已停止")
         await log_task(self.task_id, "download", "info", f"任务停止，累计下载: {self.total_downloaded}")
 
-    async def pause(self):
-        self.status = TaskStatus.PAUSED.value
-        self._pause_event.clear()
-        logger.info(f"任务 {self.task_id} 已暂停")
-
-    async def resume(self):
-        self.status = TaskStatus.RUNNING.value
-        self._pause_event.set()
-        logger.info(f"任务 {self.task_id} 已恢复")
-
     async def _worker(self, worker_id: int):
         """单个下载协程"""
         while not self._stop_event.is_set():
@@ -97,9 +91,7 @@ class DownloadTask:
 
         try:
             timeout = aiohttp.ClientTimeout(total=None, connect=30)
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            }
+            headers = {"User-Agent": DEFAULT_USER_AGENT}
             async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
                 async with session.get(self.url) as resp:
                     if resp.status not in (200, 206):
@@ -132,22 +124,21 @@ class DownloadTask:
                 semaphore.release()
 
 
-class DownloadEngine:
+class DownloadEngine(BaseEngine):
     """下载引擎：管理所有下载任务"""
 
+    _engine_name = "下载"
+
     def __init__(self):
-        self._tasks: dict[int, DownloadTask] = {}
+        self._runners: dict[int, DownloadTask] = {}
         self._global_limiter: TokenBucket | None = None
         self._global_semaphore: asyncio.Semaphore | None = None
         self._global_max_concurrency: int = 0
 
-    def set_global_limit(self, speed_limit_bps: int):
-        """设置全局限速 (bytes/s)"""
-        if speed_limit_bps > 0:
-            self._global_limiter = TokenBucket(speed_limit_bps, speed_limit_bps * 2)
-        else:
-            self._global_limiter = None
-        logger.info(f"全局限速已设置为: {speed_limit_bps} bytes/s")
+    # 保持旧 API 别名
+    @property
+    def _tasks(self) -> dict[int, DownloadTask]:
+        return self._runners
 
     def set_global_concurrency(self, limit: int):
         """设置全局最大并发数"""
@@ -159,88 +150,42 @@ class DownloadEngine:
         logger.info(f"全局最大并发数已设置为: {limit}")
 
     def get_task(self, task_id: int) -> DownloadTask | None:
-        return self._tasks.get(task_id)
+        return self._runners.get(task_id)
 
     def get_all_tasks(self) -> dict[int, DownloadTask]:
-        return dict(self._tasks)
+        return dict(self._runners)
 
     async def start_download(self, task_id: int, url: str, concurrency: int,
                              target_bytes: int = 0, speed_limit: int = 0,
                              initial_downloaded: int = 0) -> DownloadTask:
-        if task_id in self._tasks:
-            await self._tasks[task_id].stop()
+        if task_id in self._runners:
+            await self._runners[task_id].stop()
 
         dl_task = DownloadTask(task_id, url, concurrency, target_bytes, speed_limit, initial_downloaded)
-        self._tasks[task_id] = dl_task
+        self._runners[task_id] = dl_task
         await dl_task.start()
         return dl_task
 
     async def stop_download(self, task_id: int):
-        dl_task = self._tasks.get(task_id)
-        if dl_task:
-            await dl_task.stop()
-            del self._tasks[task_id]
+        await self._stop_runner(task_id)
 
     async def pause_download(self, task_id: int):
-        dl_task = self._tasks.get(task_id)
-        if dl_task:
-            await dl_task.pause()
+        await self.pause_runner(task_id)
 
     async def resume_download(self, task_id: int):
-        dl_task = self._tasks.get(task_id)
-        if dl_task:
-            await dl_task.resume()
+        await self.resume_runner(task_id)
 
-    async def stop_all(self):
-        for task_id in list(self._tasks.keys()):
-            await self.stop_download(task_id)
+    async def _cancel_runner_tasks(self, runner):
+        """取消下载任务的所有 worker 协程。"""
+        for w in runner._workers:
+            w.cancel()
+        await asyncio.gather(*runner._workers, return_exceptions=True)
+        runner._workers.clear()
 
     async def complete_download(self, task_id: int):
         """下载任务达量完成处理"""
-        dl_task = self._tasks.get(task_id)
-        if not dl_task:
-            return
-
-        # 避免并发多次触发
-        if dl_task.status == TaskStatus.COMPLETED.value:
-            return
-        dl_task.status = TaskStatus.COMPLETED.value
-
-        dl_task._stop_event.set()
-        dl_task._pause_event.set()
-
-        # 取消所有 worker 协程
-        for w in dl_task._workers:
-            w.cancel()
-
-        # 等待所有 worker 退出
-        await asyncio.gather(*dl_task._workers, return_exceptions=True)
-        dl_task._workers.clear()
-
-        # 记录日志
-        from app.utils.humanize import format_bytes
-        logger.info(f"任务 {task_id} 已达目标下载量 ({format_bytes(dl_task.total_downloaded)})，任务自动完成")
-        await log_task(task_id, "download", "info",
-                       f"已达目标下载量 ({format_bytes(dl_task.total_downloaded)})，任务自动完成")
-
-        # 同步数据库状态
-        try:
-            from app.database import async_session
-            from app.models.task import Task
-            async with async_session() as session:
-                task = await session.get(Task, task_id)
-                if task:
-                    task.status = TaskStatus.COMPLETED.value
-                    task.total_downloaded = dl_task.total_downloaded
-                    task.stopped_at = datetime.now()
-                    await session.commit()
-                    logger.info(f"任务 {task_id} 数据库状态已成功更新为 COMPLETED")
-        except Exception as e:
-            logger.error(f"更新任务 {task_id} 完成状态到数据库失败: {e}")
-
-        # 从内存中移除
-        if task_id in self._tasks:
-            del self._tasks[task_id]
+        from app.models.task import Task
+        await self.complete_runner(task_id, "download", Task)
 
 
 download_engine = DownloadEngine()

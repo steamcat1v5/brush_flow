@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { Card, Radio, Space, Table, Tag, Tabs, Switch } from 'antd';
 import { getFlowSummary, getTaskLogs } from '../api';
 import FlowChart from '../components/FlowChart';
+import type { TaskLogEntry } from '../types/task';
+import { levelColors } from '../types/task';
 
 type Period = 'hour' | 'day' | 'week' | 'month';
 
@@ -20,21 +22,6 @@ function usePersistedState<T>(key: string, defaultValue: T): [T, (v: T | ((prev:
   };
   return [value, persistedSetValue];
 }
-
-interface TaskLogEntry {
-  id: number;
-  task_id: number;
-  task_type: string;
-  level: string;
-  message: string;
-  created_at: string;
-}
-
-const levelColors: Record<string, string> = {
-  info: 'blue',
-  warn: 'orange',
-  error: 'red',
-};
 
 export default function FlowHistory() {
   const [searchParams] = useSearchParams();

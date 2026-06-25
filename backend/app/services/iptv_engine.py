@@ -2,14 +2,15 @@ import asyncio
 import logging
 import random
 import time
-from datetime import datetime
 
 import aiohttp
 
 from app.config import settings
+from app.constants import DEFAULT_USER_AGENT
 from app.services.flow_tracker import flow_tracker
 from app.services.hls_downloader import hls_downloader
 from app.services.task_logger import log_task
+from app.services.base_runner import BaseTaskRunner, BaseEngine
 from app.utils.limiter import TokenBucket
 from app.database import async_session
 from app.models.iptv_channel import IptvChannel
@@ -22,8 +23,10 @@ logger = logging.getLogger(__name__)
 IPTV_TASK_ID_OFFSET = 100000
 
 
-class IptvTaskRunner:
+class IptvTaskRunner(BaseTaskRunner):
     """单个 IPTV 任务的运行器：持续从 HLS 流下载分片。"""
+
+    _task_type = "iptv"
 
     def __init__(self, task_id: int, hls_url: str, speed_limit: int = 0,
                  target_bytes: int = 0, auto_switch_enabled: bool = False,
@@ -68,22 +71,9 @@ class IptvTaskRunner:
         logger.info(f"IPTV 任务 {self.task_id} 已停止，总下载: {self.total_downloaded}")
         await log_task(self.task_id, "iptv", "info", f"IPTV 任务停止，累计下载: {self.total_downloaded}")
 
-    async def pause(self):
-        self.status = TaskStatus.PAUSED.value
-        self._pause_event.clear()
-        logger.info(f"IPTV 任务 {self.task_id} 已暂停")
-
-    async def resume(self):
-        self.status = TaskStatus.RUNNING.value
-        self._pause_event.set()
-        logger.info(f"IPTV 任务 {self.task_id} 已恢复")
-
     async def _main_loop(self):
         timeout = aiohttp.ClientTimeout(total=None, connect=10, sock_read=20)
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                          "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
+        headers = {"User-Agent": DEFAULT_USER_AGENT}
 
         # 获取全局限速器
         from app.services.iptv_engine import iptv_engine
@@ -252,18 +242,14 @@ class IptvTaskRunner:
         self._switch_deadline = time.monotonic() + self.auto_switch_interval
 
 
-class IptvEngine:
+class IptvEngine(BaseEngine):
     """管理所有 IPTV 任务运行器的单例。"""
+
+    _engine_name = "IPTV"
 
     def __init__(self):
         self._runners: dict[int, IptvTaskRunner] = {}
         self._global_limiter: TokenBucket | None = None
-
-    def set_global_limit(self, speed_limit_bps: int):
-        if speed_limit_bps > 0:
-            self._global_limiter = TokenBucket(speed_limit_bps, speed_limit_bps * 2)
-        else:
-            self._global_limiter = None
 
     async def start_task(self, task_id: int, hls_url: str, speed_limit: int = 0,
                          target_bytes: int = 0, auto_switch_enabled: bool = False,
@@ -288,77 +274,18 @@ class IptvEngine:
         return runner
 
     async def stop_task(self, task_id: int):
-        runner = self._runners.get(task_id)
-        if runner:
-            await runner.stop()
-            del self._runners[task_id]
+        await self._stop_runner(task_id)
 
     async def pause_task(self, task_id: int):
-        runner = self._runners.get(task_id)
-        if runner:
-            await runner.pause()
+        await self.pause_runner(task_id)
 
     async def resume_task(self, task_id: int):
-        runner = self._runners.get(task_id)
-        if runner:
-            await runner.resume()
-
-    async def stop_all(self):
-        for task_id in list(self._runners.keys()):
-            await self.stop_task(task_id)
-
-    def get_runner(self, task_id: int) -> IptvTaskRunner | None:
-        return self._runners.get(task_id)
-
-    def get_all_runners(self) -> dict[int, IptvTaskRunner]:
-        return dict(self._runners)
+        await self.resume_runner(task_id)
 
     async def complete_task(self, task_id: int):
         """IPTV 任务达量完成处理"""
-        runner = self._runners.get(task_id)
-        if not runner:
-            return
-
-        # 避免并发多次触发
-        if runner.status == TaskStatus.COMPLETED.value:
-            return
-        runner.status = TaskStatus.COMPLETED.value
-
-        runner._stop_event.set()
-        runner._pause_event.set()
-
-        # 取消 runner 协程
-        if runner._task:
-            runner._task.cancel()
-            try:
-                await runner._task
-            except (asyncio.CancelledError, Exception):
-                pass
-
-        # 记录日志
-        from app.utils.humanize import format_bytes
-        logger.info(f"IPTV 任务 {task_id} 已达目标下载量 ({format_bytes(runner.total_downloaded)})，任务自动完成")
-        await log_task(task_id, "iptv", "info",
-                       f"已达目标下载量 ({format_bytes(runner.total_downloaded)})，任务自动完成")
-
-        # 同步数据库状态
-        try:
-            from app.database import async_session
-            from app.models.iptv_task import IptvTask
-            async with async_session() as session:
-                task = await session.get(IptvTask, task_id)
-                if task:
-                    task.status = TaskStatus.COMPLETED.value
-                    task.total_downloaded = runner.total_downloaded
-                    task.stopped_at = datetime.now()
-                    await session.commit()
-                    logger.info(f"IPTV 任务 {task_id} 数据库状态已成功更新为 COMPLETED")
-        except Exception as e:
-            logger.error(f"更新 IPTV 任务 {task_id} 完成状态到数据库失败: {e}")
-
-        # 从内存中移除
-        if task_id in self._runners:
-            del self._runners[task_id]
+        from app.models.iptv_task import IptvTask
+        await self.complete_runner(task_id, "iptv", IptvTask)
 
 
 iptv_engine = IptvEngine()

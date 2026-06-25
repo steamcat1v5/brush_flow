@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import {
   Button, Card, Modal, Form, Input, InputNumber, Select, Space, Table, Tag,
   message, Popconfirm, Switch, List, Drawer, Collapse, Empty,
@@ -10,38 +10,17 @@ import {
 } from '@ant-design/icons';
 import Hls from 'hls.js';
 import TaskLogDrawer from '../components/TaskLogDrawer';
-import CronScheduleInput from '../components/CronScheduleInput';
+import ScheduleCollapse from '../components/ScheduleCollapse';
+import { formatBytes } from '../utils/format';
+import { statusColors, statusLabels } from '../utils/taskConstants';
+import { usePolling } from '../hooks/usePolling';
+import { useTaskActions, useLogDrawer } from '../hooks/useTaskActions';
 import {
   getIptvSources, createIptvSource, deleteIptvSource, refreshIptvSource,
   getIptvChannels, getIptvTasks, createIptvTask, updateIptvTask,
   deleteIptvTask, startIptvTask, pauseIptvTask, resumeIptvTask,
   stopIptvTask, stopAllIptvTasks,
 } from '../api';
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-}
-
-const statusColors: Record<string, string> = {
-  pending: 'default',
-  running: 'processing',
-  paused: 'warning',
-  completed: 'success',
-  failed: 'error',
-  stopped: 'default',
-};
-
-const statusLabels: Record<string, string> = {
-  pending: '待启动',
-  running: '运行中',
-  paused: '已暂停',
-  completed: '已完成',
-  failed: '失败',
-  stopped: '已停止',
-};
 
 interface IptvSource {
   id: number;
@@ -148,9 +127,7 @@ function VideoPreview({ url, onClose }: { url: string; onClose: () => void }) {
 export default function IPTV() {
   const [sources, setSources] = useState<IptvSource[]>([]);
   const [tasks, setTasks] = useState<IptvTask[]>([]);
-  const [logDrawer, setLogDrawer] = useState<{ open: boolean; taskId: number; taskName: string }>(
-    { open: false, taskId: 0, taskName: '' }
-  );
+  const { logDrawer, openLog, closeLog } = useLogDrawer();
 
   // 频道抽屉
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -172,19 +149,23 @@ export default function IPTV() {
   const [sourceForm] = Form.useForm();
   const [taskForm] = Form.useForm();
   const autoSwitchEnabled = Form.useWatch('auto_switch_enabled', { form: taskForm, preserve: true });
-  const autoStartCron = Form.useWatch('auto_start_cron', { form: taskForm, preserve: true });
-  const autoStopCron = Form.useWatch('auto_stop_cron', { form: taskForm, preserve: true });
 
   const load = useCallback(() => {
     getIptvSources().then((r) => setSources(r.data));
     getIptvTasks().then((r) => setTasks(r.data));
   }, []);
 
-  useEffect(() => {
-    load();
-    const timer = setInterval(load, 2000);
-    return () => clearInterval(timer);
-  }, [load]);
+  usePolling(load, 2000, [load]);
+
+  const { handleAction } = useTaskActions({
+    startFn: startIptvTask,
+    pauseFn: pauseIptvTask,
+    resumeFn: resumeIptvTask,
+    stopFn: stopIptvTask,
+    deleteFn: deleteIptvTask,
+    onRefresh: load,
+    taskLabel: 'IPTV 任务',
+  });
 
   // ---- 频道抽屉 ----
   const handleOpenDrawer = async (source: IptvSource) => {
@@ -316,40 +297,6 @@ export default function IPTV() {
     load();
   };
 
-  const handleAction = async (action: string, id: number, status?: string) => {
-    if (action === 'start') {
-      // 已完成任务重启需确认，因为会重置下载量计数
-      if (status === 'completed') {
-        Modal.confirm({
-          title: '重新启动已完成的 IPTV 任务',
-          content: '该任务已达到目标下载量。重新启动将重置下载量计数为0，从0开始重新下载。确定要重新启动吗？',
-          okText: '确定重启',
-          cancelText: '取消',
-          onOk: async () => {
-            const res = await startIptvTask(id);
-            if (res.data.warning) {
-              message.warning({ content: res.data.warning, duration: 10 });
-            } else {
-              message.success('IPTV 任务已启动，下载量计数已重置');
-            }
-            load();
-          },
-        });
-        return;
-      }
-      const res = await startIptvTask(id);
-      if (res.data.warning) {
-        message.warning({ content: res.data.warning, duration: 10 });
-      } else {
-        message.success('IPTV 任务已启动');
-      }
-    } else if (action === 'pause') await pauseIptvTask(id);
-    else if (action === 'resume') await resumeIptvTask(id);
-    else if (action === 'stop') await stopIptvTask(id);
-    else if (action === 'delete') await deleteIptvTask(id);
-    load();
-  };
-
   const columns = [
     { title: 'ID', dataIndex: 'id', width: 60 },
     { title: '名称', dataIndex: 'name' },
@@ -393,7 +340,7 @@ export default function IPTV() {
             <Button type="link" size="small" danger icon={<StopOutlined />} onClick={() => handleAction('stop', record.id)}>停止</Button>
           )}
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleOpenEdit(record)}>编辑</Button>
-          <Button type="link" size="small" icon={<FileTextOutlined />} onClick={() => setLogDrawer({ open: true, taskId: record.id, taskName: record.name })}>日志</Button>
+          <Button type="link" size="small" icon={<FileTextOutlined />} onClick={() => openLog(record.id, record.name)}>日志</Button>
           <Popconfirm title="确定删除?" onConfirm={() => handleAction('delete', record.id)}>
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button>
           </Popconfirm>
@@ -611,27 +558,7 @@ export default function IPTV() {
             ),
           }]} />
 
-          <Collapse size="small" style={{ marginTop: 8 }} items={[{
-            key: 'schedule',
-            label: (
-              <Space size="small">
-                <span>定时设置</span>
-                {autoStartCron ? <Tag color="green">启动</Tag> : null}
-                {autoStopCron ? <Tag color="orange">停止</Tag> : null}
-                {!autoStartCron && !autoStopCron ? <Tag>未启用</Tag> : null}
-              </Space>
-            ),
-            children: (
-              <>
-                <Form.Item name="auto_start_cron" label="定时启动" style={{ marginBottom: 8 }}>
-                  <CronScheduleInput />
-                </Form.Item>
-                <Form.Item name="auto_stop_cron" label="定时停止" style={{ marginBottom: 0 }}>
-                  <CronScheduleInput />
-                </Form.Item>
-              </>
-            ),
-          }]} />
+          <ScheduleCollapse form={taskForm} style={{ marginTop: 8 }} />
 
           {editingTask?.status === 'running' && (
             <div style={{ color: '#faad14', fontSize: '12px', marginTop: 8 }}>
@@ -643,7 +570,7 @@ export default function IPTV() {
 
       <TaskLogDrawer
         open={logDrawer.open}
-        onClose={() => setLogDrawer({ ...logDrawer, open: false })}
+        onClose={closeLog}
         taskId={logDrawer.taskId}
         taskType="iptv"
         taskName={logDrawer.taskName}

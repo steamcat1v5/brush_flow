@@ -8,17 +8,7 @@ import {
 import { getTodayStats, getFlowSummary, getSettings } from '../api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import FlowChart from '../components/FlowChart';
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-}
-
-function formatSpeed(bytesPerSec: number): string {
-  return formatBytes(bytesPerSec) + '/s';
-}
+import { formatBytes, formatSpeed } from '../utils/format';
 
 function formatRemainingTime(seconds: number): string {
   if (seconds === Infinity || isNaN(seconds) || seconds < 0) return '计算中...';

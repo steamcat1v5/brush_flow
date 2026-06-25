@@ -1,34 +1,13 @@
-import { useEffect, useState } from 'react';
-import { Button, Card, Modal, Form, Input, InputNumber, Select, Space, Table, Tag, message, Popconfirm, Tooltip, Collapse } from 'antd';
+import { useState } from 'react';
+import { Button, Card, Form, Input, InputNumber, Select, Space, Table, Tag, message, Popconfirm, Tooltip } from 'antd';
 import { PlusOutlined, PlayCircleOutlined, StopOutlined, DeleteOutlined, StopFilled, EditOutlined, InfoCircleOutlined, FileTextOutlined } from '@ant-design/icons';
 import { getTasks, createTask, updateTask, startTask, pauseTask, resumeTask, stopTask, deleteTask, getLinks, stopAllTasks, getSettings } from '../api';
 import TaskLogDrawer from '../components/TaskLogDrawer';
-import CronScheduleInput from '../components/CronScheduleInput';
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-}
-
-const statusColors: Record<string, string> = {
-  pending: 'default',
-  running: 'processing',
-  paused: 'warning',
-  completed: 'success',
-  failed: 'error',
-  stopped: 'default',
-};
-
-const statusLabels: Record<string, string> = {
-  pending: '待启动',
-  running: '运行中',
-  paused: '已暂停',
-  completed: '已完成',
-  failed: '失败',
-  stopped: '已停止',
-};
+import ScheduleCollapse from '../components/ScheduleCollapse';
+import { formatBytes } from '../utils/format';
+import { statusColors, statusLabels } from '../utils/taskConstants';
+import { usePolling } from '../hooks/usePolling';
+import { useTaskActions, useLogDrawer } from '../hooks/useTaskActions';
 
 export default function Tasks() {
   const [tasks, setTasks] = useState<any[]>([]);
@@ -36,12 +15,8 @@ export default function Tasks() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
-  const [logDrawer, setLogDrawer] = useState<{ open: boolean; taskId: number; taskName: string }>(
-    { open: false, taskId: 0, taskName: '' }
-  );
+  const { logDrawer, openLog, closeLog } = useLogDrawer();
   const [form] = Form.useForm();
-  const autoStartCron = Form.useWatch('auto_start_cron', { form, preserve: true });
-  const autoStopCron = Form.useWatch('auto_stop_cron', { form, preserve: true });
 
   const load = () => {
     getTasks().then((r) => setTasks(r.data));
@@ -49,11 +24,17 @@ export default function Tasks() {
     getSettings().then((r) => setSettings(r.data.settings));
   };
 
-  useEffect(() => {
-    load();
-    const timer = setInterval(load, 2000);
-    return () => clearInterval(timer);
-  }, []);
+  usePolling(load, 2000, []);
+
+  const { handleAction } = useTaskActions({
+    startFn: startTask,
+    pauseFn: pauseTask,
+    resumeFn: resumeTask,
+    stopFn: stopTask,
+    deleteFn: deleteTask,
+    onRefresh: load,
+    taskLabel: '任务',
+  });
 
   const handleOpenCreate = () => {
     setEditingTask(null);
@@ -107,44 +88,6 @@ export default function Tasks() {
     load();
   };
 
-  const handleAction = async (action: string, id: number, status?: string) => {
-    if (action === 'start') {
-      // 已完成任务重启需确认，因为会重置下载量计数
-      if (status === 'completed') {
-        Modal.confirm({
-          title: '重新启动已完成的任务',
-          content: '该任务已达到目标下载量。重新启动将重置下载量计数为0，从0开始重新下载。确定要重新启动吗？',
-          okText: '确定重启',
-          cancelText: '取消',
-          onOk: async () => {
-            const res = await startTask(id);
-            if (res.data.warning) {
-              message.warning({ content: res.data.warning, duration: 10 });
-            } else {
-              message.success('任务已启动，下载量计数已重置');
-            }
-            load();
-          },
-        });
-        return;
-      }
-      const res = await startTask(id);
-      if (res.data.warning) {
-        message.warning({
-          content: res.data.warning,
-          duration: 10, // 停留长一点，确保用户看到
-        });
-      } else {
-        message.success('任务已启动');
-      }
-    }
-    else if (action === 'pause') await pauseTask(id);
-    else if (action === 'resume') await resumeTask(id);
-    else if (action === 'stop') await stopTask(id);
-    else if (action === 'delete') { await deleteTask(id); }
-    load();
-  };
-
   const columns = [
     { title: 'ID', dataIndex: 'id', width: 60 },
     { title: '名称', dataIndex: 'name' },
@@ -180,7 +123,7 @@ export default function Tasks() {
             <Button type="link" size="small" danger icon={<StopOutlined />} onClick={() => handleAction('stop', record.id)}>停止</Button>
           )}
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleOpenEdit(record)}>编辑</Button>
-          <Button type="link" size="small" icon={<FileTextOutlined />} onClick={() => setLogDrawer({ open: true, taskId: record.id, taskName: record.name })}>日志</Button>
+          <Button type="link" size="small" icon={<FileTextOutlined />} onClick={() => openLog(record.id, record.name)}>日志</Button>
           <Popconfirm title="确定删除?" onConfirm={() => handleAction('delete', record.id)}>
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button>
           </Popconfirm>
@@ -203,6 +146,7 @@ export default function Tasks() {
     >
       <Table dataSource={tasks} columns={columns} rowKey="id" size="middle" />
 
+      <Form form={form} layout="vertical">
       <Modal
         title={editingTask ? "编辑下载任务" : "新建下载任务"}
         open={modalOpen}
@@ -210,7 +154,6 @@ export default function Tasks() {
         onCancel={() => setModalOpen(false)}
         destroyOnClose
       >
-        <Form form={form} layout="vertical">
           <Form.Item name="link_id" label="选择链接" rules={[{ required: true }]}>
             <Select placeholder="选择一个下载链接">
               {links.map((l: any) => (
@@ -254,38 +197,18 @@ export default function Tasks() {
           >
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
-          <Collapse size="small" items={[{
-            key: 'schedule',
-            label: (
-              <Space size="small">
-                <span>定时设置</span>
-                {autoStartCron ? <Tag color="green">启动</Tag> : null}
-                {autoStopCron ? <Tag color="orange">停止</Tag> : null}
-                {!autoStartCron && !autoStopCron ? <Tag>未启用</Tag> : null}
-              </Space>
-            ),
-            children: (
-              <>
-                <Form.Item name="auto_start_cron" label="定时启动" style={{ marginBottom: 8 }}>
-                  <CronScheduleInput />
-                </Form.Item>
-                <Form.Item name="auto_stop_cron" label="定时停止" style={{ marginBottom: 0 }}>
-                  <CronScheduleInput />
-                </Form.Item>
-              </>
-            ),
-          }]} />
+          <ScheduleCollapse form={form} />
           {editingTask?.status === 'running' && (
             <div style={{ color: '#faad14', fontSize: '12px', marginTop: 8 }}>
               <InfoCircleOutlined /> 任务正在运行，修改后的设置将在下次启动时生效。
             </div>
           )}
-        </Form>
       </Modal>
+      </Form>
 
       <TaskLogDrawer
         open={logDrawer.open}
-        onClose={() => setLogDrawer({ ...logDrawer, open: false })}
+        onClose={closeLog}
         taskId={logDrawer.taskId}
         taskType="download"
         taskName={logDrawer.taskName}
