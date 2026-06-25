@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, Form, Input, InputNumber, Select, Space, Table, Tag, message, Popconfirm, Tooltip } from 'antd';
+import { Button, Card, Modal, Form, Input, InputNumber, Select, Space, Table, Tag, message, Popconfirm, Tooltip } from 'antd';
 import { PlusOutlined, PlayCircleOutlined, StopOutlined, DeleteOutlined, StopFilled, EditOutlined, InfoCircleOutlined, FileTextOutlined } from '@ant-design/icons';
 import { getTasks, createTask, updateTask, startTask, pauseTask, resumeTask, stopTask, deleteTask, getLinks, stopAllTasks, getSettings } from '../api';
 import TaskLogDrawer from '../components/TaskLogDrawer';
